@@ -41,7 +41,9 @@ export function MetarPanel({ icao }: MetarPanelProps) {
     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
       {/* Badge SPECI em laranja quando aplicável */}
       {obsType === 'SPECI' && (
-        <Badge label="SPECI" variant="mvfr" title="Special observation — conditions changed rapidly" />
+        <span title="Special observation — conditions changed rapidly">
+          <Badge label="SPECI" variant="mvfr" />
+        </span>
       )}
       {cat && <Badge label={cat} variant={CAT_VARIANT[cat]} />}
     </div>
