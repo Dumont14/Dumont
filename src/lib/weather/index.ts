@@ -13,29 +13,29 @@ export async function fetchMetar(icao: string): Promise<string> {
 
 async function fetchMetarREDEMET(icao: string): Promise<string> {
   const key = process.env.REDEMET_KEY;
-  if (!key) return fetchMetarNOAA(icao); // fallback
+  if (!key) return fetchMetarNOAA(icao);
 
   const res = await fetch(
-    `https://api-redemet.decea.mil.br/mensagens/metar/${icao}?api_key=${key}&data_ini=&data_fim=`,
-    { next: { revalidate: 300 } } // cache 5min
+    `https://api-redemet.decea.mil.br/mensagens/metar/${icao}?api_key=${key}`,
+    { next: { revalidate: 300 } }
   );
-  if (!res.ok) throw new Error(`REDEMET METAR ${res.status}`);
+  if (!res.ok) return fetchMetarNOAA(icao);
   const json = await res.json();
   const metar = json?.data?.data?.[0]?.mens;
-  if (!metar) throw new Error('REDEMET: METAR not found');
+  if (!metar) return fetchMetarNOAA(icao);
   return metar;
 }
 
 async function fetchMetarNOAA(icao: string): Promise<string> {
   const res = await fetch(
-    `https://aviationweather.gov/api/data/metar?ids=${icao}&format=raw&taf=false&hours=2`,
+    `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`,
     { next: { revalidate: 300 } }
   );
   if (!res.ok) throw new Error(`NOAA METAR ${res.status}`);
-  const text = await res.text();
-  const line = text.split('\n').find(l => l.trim().startsWith(icao));
-  if (!line) throw new Error('METAR not found');
-  return line.trim();
+  const data = await res.json();
+  const item = Array.isArray(data) ? data[0] : null;
+  if (!item?.rawOb) throw new Error('METAR not found');
+  return item.rawOb.trim();
 }
 
 // ── TAF ──────────────────────────────────────────────────
@@ -51,23 +51,23 @@ async function fetchTafREDEMET(icao: string): Promise<string> {
 
   const res = await fetch(
     `https://api-redemet.decea.mil.br/mensagens/taf/${icao}?api_key=${key}`,
-    { next: { revalidate: 900 } } // cache 15min
+    { next: { revalidate: 900 } }
   );
-  if (!res.ok) throw new Error(`REDEMET TAF ${res.status}`);
+  if (!res.ok) return fetchTafNOAA(icao);
   const json = await res.json();
   const taf = json?.data?.data?.[0]?.mens;
-  if (!taf) throw new Error('REDEMET: TAF not found');
+  if (!taf) return fetchTafNOAA(icao);
   return taf;
 }
 
 async function fetchTafNOAA(icao: string): Promise<string> {
   const res = await fetch(
-    `https://aviationweather.gov/api/data/taf?ids=${icao}&format=raw`,
+    `https://aviationweather.gov/api/data/taf?ids=${icao}&format=json`,
     { next: { revalidate: 900 } }
   );
   if (!res.ok) throw new Error(`NOAA TAF ${res.status}`);
-  const text = await res.text();
-  const line = text.split('\n').find(l => l.trim().startsWith('TAF'));
-  if (!line) throw new Error('TAF not found');
-  return line.trim();
+  const data = await res.json();
+  const item = Array.isArray(data) ? data[0] : null;
+  if (!item?.rawTAF) throw new Error('TAF not found');
+  return item.rawTAF.trim();
 }
