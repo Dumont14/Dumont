@@ -27,8 +27,8 @@ interface UseDumontReturn {
 export function useDumont(): UseDumontReturn {
   const [state, setState]   = useState<DumontState>('idle');
   const [result, setResult] = useState<DumontResult | null>(null);
-  const recogRef  = useRef<SpeechRecognition | null>(null);
-  const synthRef  = useRef<SpeechSynthesisUtterance | null>(null);
+  const recogRef  = useRef<any>(null);
+  const synthRef  = useRef<any>(null);
   const [isSupported, setIsSupported] = useState(false);
 
   useEffect(() => {
