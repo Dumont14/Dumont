@@ -124,7 +124,7 @@ export function useDumont(): UseDumontReturn {
       setState('idle');
     };
     recog.onend = () => {
-      if (state === 'listening') setState('idle');
+      setState('idle');
     };
 
     setState('listening');
