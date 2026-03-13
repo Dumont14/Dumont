@@ -67,16 +67,24 @@ async function fetchSpeciREDEMET(icao: string): Promise<string | null> {
 async function fetchSpeciNOAA(icao: string): Promise<string | null> {
   try {
     const res = await fetch(
-      `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&type=speci`,
+      // ✅ Sem ?type=speci — a NOAA não tem esse filtro
+      // Buscamos as últimas obs e filtramos pelo campo "type" no JSON
+      `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&hours=3`,
       { next: { revalidate: 120 } }
     );
     if (!res.ok) return null;
     const text = await res.text();
-    if (!text || !text.trim()) return null;         // ✅ body vazio → null, sem crash
+    if (!text || !text.trim()) return null;
     let data: unknown;
     try { data = JSON.parse(text); } catch { return null; }
-    const item = Array.isArray(data) ? (data as any[])[0] : null;
-    return item?.rawOb?.trim() ?? null;
+    if (!Array.isArray(data) || data.length === 0) return null;
+
+    // A NOAA retorna array ordenado do mais recente para o mais antigo
+    // Procurar o SPECI mais recente nas últimas 3h
+    const speci = (data as any[]).find(
+      item => item?.type?.toUpperCase() === 'SPECI' && item?.rawOb
+    );
+    return speci?.rawOb?.trim() ?? null;
   } catch {
     return null;
   }
