@@ -1,0 +1,51 @@
+/* src/components/briefing/MetarPanel.module.css */
+.loading, .error {
+  font-family: var(--mono);
+  font-size: .72rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--txtd);
+}
+.error { color: var(--red); }
+
+.raw {
+  font-family: var(--mono);
+  font-size: .65rem;
+  color: var(--txt);
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: rgba(0,0,0,.25);
+  border: 1px solid var(--brd);
+  padding: 8px 12px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+/* METAR token colors injected via dangerouslySetInnerHTML */
+.raw :global(.tm) { color: #4db8ff; }  /* time */
+.raw :global(.tw) { color: #ffd580; }  /* wind */
+.raw :global(.tv) { color: var(--grn); }/* vis */
+.raw :global(.tc) { color: var(--acc); }/* clouds */
+.raw :global(.tt) { color: #e0aaff; }  /* temp */
+.raw :global(.tq) { color: var(--amb); }/* qnh */
+.raw :global(.tx) { color: var(--red); }/* wx */
+
+.grid {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 4px 12px;
+  font-family: var(--mono);
+  font-size: .68rem;
+}
+.grid dt {
+  color: var(--txtd);
+  letter-spacing: 1px;
+  align-self: center;
+}
+.val  { color: var(--txtb); }
+.ok   { color: var(--grn); }
+.warn { color: var(--amb); }
+.crit { color: var(--red); }
+.gust { color: var(--red); }
+.wx   { color: var(--red); letter-spacing: .5px; }

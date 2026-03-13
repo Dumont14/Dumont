@@ -1,0 +1,58 @@
+/* src/components/ui/Panel.module.css */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--brd);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+  position: relative;
+  animation: fadeUp .25s ease;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--acc2), transparent);
+}
+.head {
+  padding: 10px 16px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--brd);
+}
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.title {
+  font-family: var(--disp);
+  font-size: .56rem;
+  letter-spacing: 3px;
+  color: var(--txtb);
+}
+.subtitle {
+  font-family: var(--mono);
+  font-size: .6rem;
+  color: var(--acc2);
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.lbar {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--brd), transparent);
+}
+.lbar.ok   { background: linear-gradient(90deg, transparent, var(--grn),  transparent); }
+.lbar.warn { background: linear-gradient(90deg, transparent, var(--amb),  transparent); }
+.lbar.crit { background: linear-gradient(90deg, transparent, var(--red),  transparent); }
+.lbar.loading {
+  background: linear-gradient(90deg, transparent, var(--acc), transparent);
+  background-size: 200% auto;
+  animation: scanSlide 1.1s infinite;
+}
+.body {
+  padding: 14px 16px;
+}
