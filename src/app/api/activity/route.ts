@@ -13,7 +13,10 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const filtered = (data || []).filter(a => a.ab_users?.visible);
+  const filtered = (data || []).filter(a => {
+  const u = Array.isArray(a.ab_users) ? a.ab_users[0] : a.ab_users;
+  return u?.visible;
+});
   return NextResponse.json(filtered);
 }
 
