@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AeroBrief — Operational Briefing</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#060a0e;--panel:#0b1520;--brd:#162535;--brdg:#1b3a58;
+  --acc:#00aaff;--acc2:#00d4ff;--grn:#00e676;--amb:#ffab00;--red:#ff3d3d;--purp:#bb86fc;
+  --txt:#b8cdd8;--txtd:#4a6878;--txtb:#e0eff8;
+  --mono:'Share Tech Mono',monospace;--ui:'Barlow Condensed',sans-serif;--disp:'Orbitron',sans-serif;
+  --fw:296px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:var(--ui);min-height:100vh;overflow-x:hidden}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.022) 3px,rgba(0,0,0,.022) 4px);pointer-events:none;z-index:999}
+#gbg{position:fixed;inset:0;background-image:linear-gradient(rgba(0,100,160,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,100,160,.04) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes fup{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes lsl{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes spinr{to{transform:rotate(360deg)}}
+@keyframes decayBlink{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 rgba(0,230,118,.5)}70%{box-shadow:0 0 0 14px rgba(0,230,118,0)}}
+@keyframes voiceWave{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+#dumont-btn{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:400;display:flex;flex-direction:column;align-items:center;gap:6px}
+#dumont-trigger{width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#003a5a,#005580);border:2px solid var(--acc);color:var(--acc2);font-size:1.4rem;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(0,170,255,.25)}
+#dumont-trigger:hover{box-shadow:0 4px 24px rgba(0,170,255,.4)}
+#dumont-trigger.listening{border-color:var(--grn);color:var(--grn);background:linear-gradient(135deg,#002a1a,#003a22);animation:voicePulse 1.2s infinite}
+#dumont-trigger.thinking{border-color:var(--acc);animation:pulse .7s infinite}
+#dumont-trigger.speaking{border-color:var(--acc2);background:linear-gradient(135deg,#001a2e,#002a42)}
+#dumont-label{font-family:var(--disp);font-size:.44rem;letter-spacing:3px;color:var(--txtd);white-space:nowrap;background:rgba(6,10,14,.85);padding:3px 10px;border:1px solid var(--brd)}
+#dumont-label.listening{color:var(--grn)}
+#dumont-label.thinking{color:var(--acc)}
+#dumont-label.speaking{color:var(--acc2)}
+.voice-wave{display:none;align-items:center;gap:2px;height:18px}
+#dumont-trigger.listening .voice-wave{display:flex}
+#dumont-trigger.listening .mic-icon{display:none}
+.vb{width:3px;border-radius:2px;background:var(--grn);animation:voiceWave .6s ease infinite}
+.vb:nth-child(1){animation-delay:0s;height:8px}.vb:nth-child(2){animation-delay:.1s;height:14px}.vb:nth-child(3){animation-delay:.2s;height:18px}.vb:nth-child(4){animation-delay:.3s;height:14px}.vb:nth-child(5){animation-delay:.4s;height:8px}
+#dumont-bubble{position:fixed;bottom:108px;left:50%;transform:translateX(-50%);z-index:400;width:min(520px,90vw);background:rgba(8,16,24,.96);border:1px solid var(--brdg);clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));animation:fadeIn .25s ease;display:none}
+#dumont-bubble::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--acc2),transparent)}
+.db-head{padding:7px 14px 6px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between}
+.db-name{font-family:var(--disp);font-size:.52rem;letter-spacing:3px;color:var(--acc2);display:flex;align-items:center;gap:7px}
+.db-close{background:none;border:1px solid var(--brd);color:var(--txtd);width:22px;height:22px;cursor:pointer;font-size:.7rem;display:flex;align-items:center;justify-content:center}
+.db-heard{padding:8px 14px 6px;font-family:var(--mono);font-size:.58rem;color:var(--txtd);border-bottom:1px solid var(--brd);line-height:1.5}
+.db-heard span{color:var(--txt)}
+.db-reply{padding:10px 14px 12px;font-family:var(--ui);font-size:.88rem;font-weight:500;color:var(--txtb);line-height:1.7}
+.db-footer{padding:5px 14px 8px;display:flex;align-items:center;gap:8px}
+.db-replay{font-family:var(--disp);font-size:.42rem;letter-spacing:2px;padding:3px 10px;border:1px solid var(--brd);color:var(--txtd);background:rgba(0,0,0,.2);cursor:pointer;transition:all .15s}
+.db-replay:hover{border-color:var(--acc);color:var(--acc)}
+.db-brief{font-family:var(--disp);font-size:.42rem;letter-spacing:2px;padding:3px 10px;border:1px solid var(--acc);color:var(--acc);background:rgba(0,170,255,.06);cursor:pointer;transition:all .15s;clip-path:polygon(0 0,calc(100% - 5px) 0,100% 5px,100% 100%,0 100%)}
+.db-brief:hover{background:rgba(0,170,255,.14)}
+#dumont-hint{position:fixed;bottom:108px;left:50%;transform:translateX(-50%);z-index:400;font-family:var(--mono);font-size:.56rem;color:var(--txtd);letter-spacing:1px;background:rgba(6,10,14,.9);border:1px solid var(--brd);padding:7px 14px;white-space:nowrap;display:none}
+
+/* ── LAYOUT ───────────────────────────────────────── */
+#shell{display:flex;height:100vh;overflow:hidden;position:relative;z-index:1}
+#main-col{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
+#fsb{width:var(--fw);flex-shrink:0;background:rgba(8,14,20,.97);border-left:1px solid var(--brd);display:flex;flex-direction:column;transition:transform .25s ease}
+
+/* ── DISCLAIMER BANNER ────────────────────────────── */
+#disclaimer{
+  background:linear-gradient(90deg,rgba(255,171,0,.08),rgba(255,171,0,.04));
+  border-bottom:1px solid rgba(255,171,0,.2);
+  padding:7px 22px;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  flex-shrink:0;
+}
+.disc-icon{font-size:.9rem;color:var(--amb);flex-shrink:0}
+.disc-txt{font-family:var(--mono);font-size:.6rem;color:var(--amb);letter-spacing:.5px;flex:1;line-height:1.6}
+.disc-txt strong{color:#ffd066}
+.disc-links{display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}
+.disc-link{
+  font-family:var(--disp);font-size:.44rem;letter-spacing:1.5px;
+  padding:3px 8px;border:1px solid rgba(255,171,0,.4);
+  color:var(--amb);text-decoration:none;transition:all .15s;
+  clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%);
+}
+.disc-link:hover{background:rgba(255,171,0,.1);border-color:var(--amb)}
+
+/* ── HEADER ───────────────────────────────────────── */
+header{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:9px 22px;background:rgba(6,10,14,.96);border-bottom:1px solid var(--brdg);backdrop-filter:blur(12px);box-shadow:0 2px 24px rgba(0,0,0,.6);flex-shrink:0}
+.logo{display:flex;align-items:center;gap:11px}
+.lm{width:33px;height:33px;border:2px solid var(--acc);display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-size:.56rem;font-weight:900;color:var(--acc);clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,7px 100%,0 calc(100% - 7px));box-shadow:0 0 12px rgba(0,170,255,.18);flex-shrink:0}
+.lt{font-family:var(--disp);font-size:.95rem;font-weight:900;color:var(--acc2);letter-spacing:5px;text-shadow:0 0 12px rgba(0,212,255,.3)}
+.ls{font-family:var(--ui);font-size:.46rem;letter-spacing:3px;color:var(--txtd);margin-top:1px}
+.hr2{display:flex;align-items:center;gap:11px}
+#uchip{display:flex;align-items:center;gap:7px;padding:5px 10px;border:1px solid var(--brd);background:rgba(0,0,0,.3);cursor:pointer;transition:border-color .15s;clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)}
+#uchip:hover{border-color:var(--acc)}
+.un{font-family:var(--ui);font-size:.74rem;font-weight:600;color:var(--txtb)}
+.ur{font-family:var(--disp);font-size:.38rem;letter-spacing:1px;color:var(--txtd)}
+.cdot{width:6px;height:6px;border-radius:50%;background:var(--grn);box-shadow:0 0 5px var(--grn)}
+.coff{background:var(--txtd);box-shadow:none}
+#utc{text-align:right;font-family:var(--mono)}
+#utime{font-size:.88rem;color:var(--acc);letter-spacing:2px}
+#udate{font-size:.52rem;color:var(--txtd);margin-top:1px}
+
+/* ── SEARCH ───────────────────────────────────────── */
+.sb{padding:12px 22px;background:linear-gradient(180deg,rgba(10,16,24,.98),rgba(6,10,14,.95));border-bottom:1px solid var(--brd);flex-shrink:0}
+.sr{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap;max-width:860px}
+.ig{display:flex;flex-direction:column;gap:4px}
+.ig label{font-family:var(--disp);font-size:.42rem;letter-spacing:3px;color:var(--txtd)}
+.icao{width:118px;background:var(--panel);border:1px solid var(--brdg);color:var(--txtb);font-family:var(--disp);font-size:.95rem;font-weight:700;letter-spacing:5px;padding:8px 11px;text-transform:uppercase;outline:none;transition:border-color .15s;clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%)}
+.icao:focus{border-color:var(--acc)}
+.icao::placeholder{color:var(--brdg);letter-spacing:2px}
+.spsep{padding-bottom:10px;font-family:var(--mono);font-size:.8rem;color:var(--txtd)}
+.bgo{padding:9px 20px;background:linear-gradient(135deg,#00395e,#004d80);border:1px solid var(--acc);color:var(--acc2);font-family:var(--disp);font-size:.58rem;font-weight:700;letter-spacing:3px;cursor:pointer;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px));transition:all .15s}
+.bgo:hover{background:linear-gradient(135deg,#004a7a,#0060a0);box-shadow:0 0 14px rgba(0,170,255,.2)}
+.bgo:active{transform:scale(.97)}.bgo.busy{opacity:.6;pointer-events:none}
+.pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.pill{font-family:var(--mono);font-size:.47rem;letter-spacing:1px;padding:2px 7px;border:1px solid var(--brd);color:var(--txtd);background:rgba(0,0,0,.2)}
+.pill.on{border-color:rgba(0,230,118,.3);color:var(--grn)}
+
+/* ── APP GRID ─────────────────────────────────────── */
+#app{padding:12px 18px 40px;display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:1200px;margin:0 auto}
+.full{grid-column:1/-1}
+#empty{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:50px 20px;gap:12px}
+.eicon{font-family:var(--disp);font-size:2.8rem;color:var(--brdg);letter-spacing:6px}
+.elines{font-family:var(--mono);font-size:.6rem;color:var(--txtd);letter-spacing:2px;line-height:2.2;text-align:center}
+
+/* ── PANEL ────────────────────────────────────────── */
+.panel{background:var(--panel);border:1px solid var(--brd);position:relative;overflow:hidden;animation:fup .3s ease both}
+.panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,170,255,.35),transparent)}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:8px 13px 7px;border-bottom:1px solid var(--brd);background:rgba(0,0,0,.25);gap:8px;flex-wrap:wrap}
+.phl{display:flex;flex-direction:column;gap:1px}
+.ptag{font-family:var(--disp);font-size:.42rem;letter-spacing:3px;color:var(--acc)}
+.picao{font-family:var(--disp);font-size:.86rem;font-weight:700;color:var(--txtb);letter-spacing:4px}
+.phr{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pb{padding:10px 13px}
+.ctag{position:absolute;top:0;right:0;font-family:var(--disp);font-size:.38rem;letter-spacing:2px;background:var(--acc);color:var(--bg);padding:2px 9px 2px 13px;clip-path:polygon(8px 0,100% 0,100% 100%,0 100%)}
+.ctag.g{background:var(--grn)}.ctag.a{background:var(--amb)}.ctag.r{background:var(--red)}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;font-family:var(--disp);font-size:.44rem;font-weight:700;letter-spacing:2px;border:1px solid;clip-path:polygon(5px 0,100% 0,calc(100% - 5px) 100%,0 100%)}
+.bg{color:var(--grn);border-color:var(--grn);background:rgba(0,230,118,.07)}
+.ba{color:var(--amb);border-color:var(--amb);background:rgba(255,171,0,.08)}
+.br{color:var(--red);border-color:var(--red);background:rgba(255,61,61,.08)}
+.bb{color:var(--acc);border-color:var(--acc);background:rgba(0,170,255,.07)}
+.bp{color:var(--purp);border-color:var(--purp);background:rgba(187,134,252,.07)}
+.dot{width:5px;height:5px;border-radius:50%}
+.dg{background:var(--grn);box-shadow:0 0 4px var(--grn);animation:pulse 2s infinite}
+.da{background:var(--amb);animation:pulse 2s infinite}
+.dr{background:var(--red);box-shadow:0 0 4px var(--red);animation:pulse .8s infinite}
+.raw{font-family:var(--mono);font-size:.66rem;color:var(--txtd);line-height:1.8;padding:8px 10px;background:rgba(0,0,0,.35);border:1px solid var(--brd);border-left:3px solid var(--brdg);margin-bottom:9px;word-break:break-all}
+.tw{color:#ffdd88}.tv{color:#88ffcc}.tc{color:#99aaff}.tt{color:#ff9966}.tq{color:#cc88ff}.tx{color:#ff7799}.tm{color:#aaddff}
+.dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(94px,1fr));gap:6px;margin-bottom:8px}
+.dc{background:rgba(0,0,0,.3);border:1px solid var(--brd);padding:7px 8px}
+.dl{font-family:var(--disp);font-size:.4rem;letter-spacing:2px;color:var(--txtd);margin-bottom:3px}
+.dv{font-family:var(--mono);font-size:.84rem;color:var(--txtb);line-height:1}
+.dv.ok{color:var(--grn)}.dv.warn{color:var(--amb)}.dv.crit{color:var(--red)}
+.ds{font-family:var(--mono);font-size:.54rem;color:var(--txtd);margin-top:2px}
+.tbox{font-family:var(--mono);font-size:.64rem;color:var(--txtd);line-height:1.9;padding:9px 10px;background:rgba(0,0,0,.25);border:1px solid var(--brd);border-left:3px solid #152840;white-space:pre-wrap;word-break:break-word}
+.tp2{color:var(--acc);font-weight:bold}.tg2{color:var(--grn)}.tr2{color:var(--red)}
+.nlist{display:flex;flex-direction:column;gap:6px}
+.nitem{padding:8px 10px;border:1px solid var(--brd);background:rgba(0,0,0,.2);border-left:3px solid var(--txtd)}
+.nitem.crit{border-left-color:var(--red);background:rgba(255,30,60,.04)}.nitem.warn{border-left-color:var(--amb);background:rgba(255,171,0,.04)}
+.nhdr{display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap}
+.nid{font-family:var(--disp);font-size:.48rem;color:var(--txtd);letter-spacing:1px}
+.ntag{font-family:var(--disp);font-size:.44rem;font-weight:700;letter-spacing:1.5px;padding:1px 5px;border:1px solid}
+.nr2{color:var(--red);border-color:var(--red);background:rgba(255,61,61,.1)}.na2{color:var(--amb);border-color:var(--amb);background:rgba(255,171,0,.1)}.nb2{color:var(--acc);border-color:var(--acc);background:rgba(0,170,255,.08)}.ng2{color:var(--txtd);border-color:var(--brd)}
+.ntxt{font-family:var(--mono);font-size:.62rem;color:var(--txt);line-height:1.6}
+.nval{font-family:var(--mono);font-size:.54rem;color:var(--txtd);margin-top:2px}
+.aibox{background:rgba(0,25,45,.5);border:1px solid var(--brdg);border-left:3px solid var(--acc2);padding:9px 12px;margin-bottom:9px}
+.ailbl{font-family:var(--disp);font-size:.42rem;letter-spacing:3px;color:var(--acc2);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.ailbl::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--brdg),transparent)}
+.aitxt{font-family:var(--ui);font-size:.8rem;font-weight:500;color:var(--txtb);line-height:1.7}
+.ricao{font-family:var(--disp);font-size:.86rem;font-weight:900;color:var(--txtb);letter-spacing:5px}
+.ricao em{color:var(--acc);font-style:normal}
+.rcols{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:11px}
+.lbar{height:2px;background:linear-gradient(90deg,transparent,var(--acc),transparent);animation:lsl 1.1s infinite}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--brd);border-top-color:var(--acc);border-radius:50%;animation:spinr .7s linear infinite}
+.smsg{text-align:center;padding:26px 18px;color:var(--txtd)}
+.smsg p{font-family:var(--mono);font-size:.62rem;letter-spacing:2px;margin-top:8px}
+.err{font-family:var(--mono);font-size:.62rem;color:var(--red);padding:6px 10px;border:1px solid rgba(255,61,61,.25);background:rgba(255,61,61,.05);border-left:3px solid var(--red);margin-bottom:7px}
+
+/* ── REPORTS PANEL ────────────────────────────────── */
+.rp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.rp-title{font-family:var(--disp);font-size:.48rem;letter-spacing:3px;color:var(--acc2)}
+.btn-new-post{
+  padding:6px 14px;background:rgba(0,212,255,.08);
+  border:1px solid var(--acc2);color:var(--acc2);
+  font-family:var(--disp);font-size:.46rem;letter-spacing:2px;
+  cursor:pointer;transition:all .15s;
+  clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%);
+}
+.btn-new-post:hover{background:rgba(0,212,255,.15)}
+.rp-list{display:flex;flex-direction:column;gap:8px}
+
+/* REPORT CARD */
+.rcard{
+  border:1px solid var(--brd);background:rgba(0,0,0,.2);
+  position:relative;overflow:hidden;
+  transition:border-color .2s;
+}
+.rcard:hover{border-color:var(--brdg)}
+.rcard.score-high{border-color:rgba(0,230,118,.25);background:rgba(0,230,118,.02)}
+.rcard.score-med{border-color:rgba(255,171,0,.2)}
+.rcard.decaying{border-color:rgba(255,61,61,.2);background:rgba(255,30,60,.02)}
+/* left accent bar by category */
+.rcard::after{content:'';position:absolute;top:0;left:0;bottom:0;width:3px}
+.rcard.cat-met::after{background:var(--acc)}
+.rcard.cat-rwy::after{background:var(--red)}
+.rcard.cat-equip::after{background:var(--amb)}
+.rcard.cat-obs::after{background:var(--purp)}
+.rcard.cat-ops::after{background:var(--grn)}
+.rc-top{display:flex;align-items:flex-start;gap:10px;padding:10px 12px 10px 15px}
+.rc-main{flex:1;min-width:0}
+.rc-cat{
+  font-family:var(--disp);font-size:.42rem;letter-spacing:2px;
+  padding:2px 7px;border:1px solid;display:inline-flex;align-items:center;gap:4px;
+  margin-bottom:5px;
+}
+.rc-title{font-family:var(--ui);font-size:.88rem;font-weight:600;color:var(--txtb);line-height:1.3;margin-bottom:3px}
+.rc-body{font-family:var(--mono);font-size:.62rem;color:var(--txt);line-height:1.6;margin-bottom:5px}
+.rc-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rc-author{font-family:var(--ui);font-size:.72rem;font-weight:500;color:var(--txtd)}
+.rc-time{font-family:var(--mono);font-size:.56rem;color:var(--txtd)}
+.rc-photo{width:72px;height:72px;flex-shrink:0;object-fit:cover;border:1px solid var(--brd);cursor:pointer;transition:opacity .15s}
+.rc-photo:hover{opacity:.8}
+.rc-bottom{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 12px 6px 15px;
+  border-top:1px solid var(--brd);background:rgba(0,0,0,.15);
+  gap:8px;flex-wrap:wrap;
+}
+.rc-decay{
+  display:flex;align-items:center;gap:5px;
+  font-family:var(--mono);font-size:.56rem;color:var(--txtd);
+}
+.decay-bar{
+  width:80px;height:4px;background:var(--brd);border-radius:2px;overflow:hidden;
+}
+.decay-fill{height:100%;border-radius:2px;transition:width 60s linear}
+.decay-crit{animation:decayBlink .8s infinite}
+.rc-confirms{
+  display:flex;align-items:center;gap:7px;
+}
+.confirm-btn{
+  display:flex;align-items:center;gap:5px;
+  padding:4px 10px;border:1px solid var(--brd);
+  background:rgba(0,0,0,.2);color:var(--txtd);
+  font-family:var(--disp);font-size:.46rem;letter-spacing:1.5px;
+  cursor:pointer;transition:all .15s;
+}
+.confirm-btn:hover{border-color:var(--grn);color:var(--grn);background:rgba(0,230,118,.06)}
+.confirm-btn.confirmed{border-color:var(--grn);color:var(--grn);background:rgba(0,230,118,.06);pointer-events:none}
+.confirm-btn.confirming{opacity:.5;pointer-events:none}
+.confirm-count{font-family:var(--mono);font-size:.62rem;color:var(--txt)}
+.rep-badge{font-family:var(--disp);font-size:.38rem;letter-spacing:1px;padding:1px 6px;border:1px solid}
+.rep-observer{color:var(--txtd);border-color:var(--brd)}
+.rep-reporter{color:var(--acc);border-color:var(--acc);background:rgba(0,170,255,.06)}
+.rep-trusted{color:var(--amb);border-color:var(--amb);background:rgba(255,171,0,.06)}
+.rep-expert{color:var(--purp);border-color:var(--purp);background:rgba(187,134,252,.07)}
+.score-chip{font-family:var(--mono);font-size:.56rem;color:var(--txtd)}
+.score-chip.hi{color:var(--grn)}
+
+/* ── NEW POST MODAL ───────────────────────────────── */
+.mbg{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.78);backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--panel);border:1px solid var(--brdg);width:100%;max-width:460px;position:relative;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));animation:fup .2s ease;max-height:92vh;overflow-y:auto}
+.modal::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--acc2),transparent)}
+.mhd{padding:14px 17px 10px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--panel);z-index:2}
+.mtl{font-family:var(--disp);font-size:.6rem;letter-spacing:3px;color:var(--acc2)}
+.mcl{background:none;border:1px solid var(--brd);color:var(--txtd);width:24px;height:24px;cursor:pointer;font-size:.72rem;display:flex;align-items:center;justify-content:center;transition:border-color .15s}
+.mcl:hover{border-color:var(--red);color:var(--red)}
+.mbd{padding:16px}
+.mf{margin-bottom:12px}
+.mf label{display:block;font-family:var(--disp);font-size:.44rem;letter-spacing:2px;color:var(--txtd);margin-bottom:5px}
+.mi{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--brdg);color:var(--txtb);font-family:var(--ui);font-size:.86rem;font-weight:500;padding:8px 10px;outline:none;transition:border-color .15s;clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,0 100%)}
+.mi:focus{border-color:var(--acc)}
+textarea.mi{resize:vertical;min-height:72px;font-family:var(--mono);font-size:.7rem;line-height:1.6}
+.cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.cat-btn{padding:8px 5px;border:1px solid var(--brd);background:rgba(0,0,0,.2);color:var(--txtd);font-family:var(--disp);font-size:.44rem;letter-spacing:1px;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px}
+.cat-btn .ci{font-size:1rem}
+.cat-btn:hover{border-color:var(--acc);color:var(--acc)}
+.cat-btn.sel{border-color:var(--acc2);color:var(--acc2);background:rgba(0,212,255,.08)}
+.photo-area{
+  border:1px dashed var(--brdg);padding:16px;text-align:center;cursor:pointer;transition:border-color .15s;
+  font-family:var(--mono);font-size:.62rem;color:var(--txtd);letter-spacing:1px;
+}
+.photo-area:hover{border-color:var(--acc);color:var(--acc)}
+.photo-area.has-photo{border-style:solid;border-color:var(--grn);color:var(--grn)}
+.photo-preview{width:100%;max-height:180px;object-fit:cover;margin-top:8px;border:1px solid var(--brd)}
+#photo-input{display:none}
+.mbtn{width:100%;padding:10px;margin-top:5px;background:linear-gradient(135deg,#00395e,#004d80);border:1px solid var(--acc);color:var(--acc2);font-family:var(--disp);font-size:.58rem;letter-spacing:3px;font-weight:700;cursor:pointer;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px));transition:all .15s}
+.mbtn:hover{background:linear-gradient(135deg,#004a7a,#0060a0)}
+.mbtn.danger{background:linear-gradient(135deg,#4a0010,#700020);border-color:var(--red);color:var(--red);margin-top:8px}
+
+/* PROFILE MODAL uses same .mbg/.modal */
+.rg2{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:4px}
+.rb{padding:7px 6px;border:1px solid var(--brd);background:rgba(0,0,0,.2);color:var(--txtd);font-family:var(--disp);font-size:.44rem;letter-spacing:1px;cursor:pointer;transition:all .15s;text-align:center}
+.rb:hover{border-color:var(--acc);color:var(--acc)}.rb.sel{border-color:var(--acc2);color:var(--acc2);background:rgba(0,212,255,.08)}
+.mtgl{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--brd);background:rgba(0,0,0,.2);cursor:pointer;transition:border-color .15s}
+.mtgl:hover{border-color:var(--acc)}
+.ttr{width:36px;height:20px;border-radius:10px;background:var(--brd);border:1px solid var(--brdg);position:relative;transition:background .2s;flex-shrink:0}
+.ttr.on{background:rgba(0,230,118,.2);border-color:var(--grn)}
+.tth{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--txtd);transition:all .2s}
+.ttr.on .tth{left:18px;background:var(--grn)}
+.tlbl{font-family:var(--ui);font-size:.78rem;font-weight:500;color:var(--txt)}
+.tsub{font-family:var(--mono);font-size:.54rem;color:var(--txtd);margin-top:1px}
+
+/* ── LIGHTBOX ─────────────────────────────────────── */
+#lightbox{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;cursor:zoom-out}
+#lightbox img{max-width:92vw;max-height:92vh;object-fit:contain;border:1px solid var(--brdg)}
+
+/* ── FEED SIDEBAR ─────────────────────────────────── */
+.fh{padding:10px 13px 8px;border-bottom:1px solid var(--brd);background:rgba(0,0,0,.3);flex-shrink:0}
+.fht{font-family:var(--disp);font-size:.54rem;letter-spacing:3px;color:var(--acc);margin-bottom:2px;display:flex;align-items:center;gap:7px}
+.ldot{width:6px;height:6px;border-radius:50%;background:var(--grn);box-shadow:0 0 6px var(--grn);animation:pulse 1.5s infinite}
+.fhs{font-family:var(--mono);font-size:.5rem;color:var(--txtd);letter-spacing:1px}
+#fl{flex:1;overflow-y:auto;padding:6px 0}
+#fl::-webkit-scrollbar{width:3px}
+#fl::-webkit-scrollbar-thumb{background:var(--brd)}
+.fi{padding:8px 12px;border-bottom:1px solid rgba(22,37,53,.5);animation:fup .3s ease;cursor:default}
+.fi:hover{background:rgba(0,0,0,.2)}
+.fit{display:flex;align-items:center;gap:5px;margin-bottom:2px;flex-wrap:wrap}
+.fin{font-family:var(--ui);font-size:.76rem;font-weight:600;color:var(--txtb)}
+.fir{font-family:var(--disp);font-size:.38rem;letter-spacing:1.5px;padding:1px 5px;border:1px solid}
+.fib{font-family:var(--mono);font-size:.6rem;color:var(--txt);line-height:1.5}
+.fib em{color:var(--acc);font-style:normal;font-weight:bold}
+.fitime{font-family:var(--mono);font-size:.5rem;color:var(--txtd);margin-top:2px}
+.fiarr{color:var(--acc2)}
+.fempty{padding:24px 12px;text-align:center;font-family:var(--mono);font-size:.58rem;color:var(--txtd);letter-spacing:1px;line-height:2.2}
+.rn{color:#00bfff;border-color:#00bfff;background:rgba(0,191,255,.07)}
+.rp{color:#00e676;border-color:#00e676;background:rgba(0,230,118,.07)}
+.rm{color:#ffab00;border-color:#ffab00;background:rgba(255,171,0,.07)}
+.ra{color:#bb86fc;border-color:#bb86fc;background:rgba(187,134,252,.07)}
+.rx{color:#ff7043;border-color:#ff7043;background:rgba(255,112,67,.07)}
+.rd{color:#78909c;border-color:#78909c;background:rgba(120,144,156,.07)}
+.rs{color:#26c6da;border-color:#26c6da;background:rgba(38,198,218,.07)}
+.rg{color:#d4e157;border-color:#d4e157;background:rgba(212,225,87,.07)}
+#ftoggle{display:none;position:fixed;bottom:20px;right:16px;z-index:200;width:44px;height:44px;border-radius:50%;background:var(--acc);border:none;color:var(--bg);font-size:1.1rem;cursor:pointer;box-shadow:0 4px 16px rgba(0,170,255,.4);align-items:center;justify-content:center}
+
+@media(max-width:900px){#fsb{position:fixed;right:0;top:0;bottom:0;z-index:300;transform:translateX(100%)}#fsb.open{transform:translateX(0)}#ftoggle{display:flex}#shell{height:auto}#main-col{height:auto;overflow-y:visible}}
+@media(max-width:720px){#app{grid-template-columns:1fr;padding:10px 12px}.full{grid-column:1}.rcols{grid-template-columns:1fr}.dgrid{grid-template-columns:repeat(3,1fr)}.icao{width:102px}header{padding:7px 13px}.sb{padding:10px 13px}#disclaimer{padding:6px 13px}}
+@media(max-width:480px){.dgrid{grid-template-columns:repeat(2,1fr)}.icao{width:88px;font-size:.82rem}.cat-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div id="gbg"></div>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" onclick="this.style.display='none'"><img id="lb-img" src="" alt=""></div>
+
+<!-- PROFILE MODAL -->
+<div class="mbg" id="pmodal" style="display:none">
+  <div class="modal">
+    <div class="mhd"><div class="mtl" id="pmtl">CREATE PROFILE</div><button class="mcl" onclick="closePModal()">✕</button></div>
+    <div class="mbd">
+      <div class="mf"><label>Full Name</label><input class="mi" id="pmn" placeholder="João da Silva" maxlength="60"></div>
+      <div class="mf"><label>Phone (optional)</label><input class="mi" id="pmp" placeholder="+55 11 99999-9999" maxlength="20"></div>
+      <div class="mf"><label>Function / Role</label><div class="rg2" id="prg"></div></div>
+      <div class="mf">
+        <label>Visibility in Activity Feed</label>
+        <div class="mtgl" onclick="toggleVis()">
+          <div class="ttr on" id="pttr"><div class="tth"></div></div>
+          <div><div class="tlbl" id="ptlbl">Visible to other users</div><div class="tsub" id="ptsub">Your briefing activity will appear in the feed</div></div>
+        </div>
+      </div>
+      <button class="mbtn" id="pmsb" onclick="saveProfile()">▶ SAVE PROFILE</button>
+      <button class="mbtn danger" id="pmlb" onclick="logoutUser()" style="display:none">✕ SIGN OUT / CLEAR PROFILE</button>
+    </div>
+  </div>
+</div>
+
+<!-- NEW POST MODAL -->
+<div class="mbg" id="nmodal" style="display:none">
+  <div class="modal">
+    <div class="mhd"><div class="mtl">NEW FIELD REPORT</div><button class="mcl" onclick="closeNModal()">✕</button></div>
+    <div class="mbd">
+      <div class="mf">
+        <label>Aerodrome ICAO</label>
+        <input class="mi" id="np-icao" maxlength="4" placeholder="SBSP" style="font-family:var(--disp);letter-spacing:4px;text-transform:uppercase">
+      </div>
+      <div class="mf">
+        <label>Category</label>
+        <div class="cat-grid" id="cat-grid"></div>
+      </div>
+      <div class="mf"><label>Title — brief summary</label><input class="mi" id="np-title" placeholder="Fog on RWY 06 threshold" maxlength="100"></div>
+      <div class="mf"><label>Details (optional)</label><textarea class="mi" id="np-body" placeholder="Additional information…" maxlength="500"></textarea></div>
+      <div class="mf">
+        <label>Photo (optional, max 5MB)</label>
+        <div class="photo-area" id="photo-drop" onclick="document.getElementById('photo-input').click()">
+          <div id="photo-prompt">📷 TAP TO ADD PHOTO</div>
+          <img class="photo-preview" id="photo-preview" style="display:none">
+        </div>
+        <input type="file" id="photo-input" accept="image/*" onchange="onPhotoSelect(event)">
+      </div>
+      <div style="font-family:var(--mono);font-size:.56rem;color:var(--txtd);padding:8px;border:1px solid rgba(255,171,0,.15);background:rgba(255,171,0,.04);border-left:3px solid rgba(255,171,0,.3);margin-bottom:10px;line-height:1.7">
+        ⚠ This is a community observation tool.<br>
+        <strong style="color:#ffd066">Do NOT use as substitute for official AIS, METAR, TAF or NOTAM sources.</strong><br>
+        Only publish safety-relevant, factual information.
+      </div>
+      <button class="mbtn" id="npsb" onclick="submitPost()">▶ PUBLISH REPORT</button>
+    </div>
+  </div>
+</div>
+
+<div id="shell">
+  <div id="main-col">
+
+    <!-- DISCLAIMER -->
+    <div id="disclaimer">
+      <div class="disc-icon">⚠</div>
+      <div class="disc-txt">
+        <strong>AeroBrief does not replace official sources.</strong>
+        Community reports are unverified. Always consult official METAR, TAF, NOTAM and AIS data for operational decisions.
+      </div>
+      <div class="disc-links">
+        <a class="disc-link" href="https://www.redemet.aer.mil.br" target="_blank">REDEMET</a>
+        <a class="disc-link" href="https://www.aisweb.aer.mil.br" target="_blank">AISWEB</a>
+        <a class="disc-link" href="https://www.decea.mil.br" target="_blank">DECEA</a>
+        <a class="disc-link" href="https://aviationweather.gov" target="_blank">NOAA AWC</a>
+        <a class="disc-link" href="https://www.icao.int" target="_blank">ICAO</a>
+      </div>
+    </div>
+
+    <header>
+      <div class="logo">
+        <div class="lm">AB</div>
+        <div><div class="lt">AEROBRIEF</div><div class="ls">Operational Briefing System</div></div>
+      </div>
+      <div class="hr2">
+        <div id="uchip" onclick="openPModal()">
+          <div class="cdot coff" id="cdot"></div>
+          <div><div class="un" id="uname">Sign in</div><div class="ur" id="urole">TAP TO CREATE PROFILE</div></div>
+        </div>
+        <div id="utc">
+          <div style="font-size:.42rem;letter-spacing:3px;color:var(--txtd)">UTC</div>
+          <div id="utime">--:--:--</div>
+          <div id="udate" style="font-size:.5rem;color:var(--txtd);margin-top:1px"></div>
+        </div>
+      </div>
+    </header>
+
+    <div class="sb">
+      <div class="sr">
+        <div class="ig"><label>Departure</label><input class="icao" id="dep" maxlength="4" placeholder="SBSP" autocomplete="off" spellcheck="false"></div>
+        <div class="spsep">→</div>
+        <div class="ig"><label>Destination (optional)</label><input class="icao" id="arr" maxlength="4" placeholder="EGLL" autocomplete="off" spellcheck="false"></div>
+        <button class="bgo" id="bgo" onclick="runBriefing()">▶ BRIEF</button>
+      </div>
+      <div class="pills">
+        <span class="pill on">NOAA METAR/TAF</span>
+        <span class="pill on">REDEMET SB*</span>
+        <span class="pill on">AISWEB NOTAMs SB*</span>
+        <span class="pill on">FAA NOTAMs INTL</span>
+        <span class="pill" id="aipill">AI SUMMARY</span>
+      </div>
+    </div>
+
+    <div id="app">
+      <div id="empty">
+        <div class="eicon">✈</div>
+        <div class="elines">ENTER AN ICAO CODE AND PRESS BRIEF<br>SUPPORTS ANY AIRPORT WORLDWIDE<br>METAR · TAF · NOTAMs · FIELD REPORTS · AI BRIEFING</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIVITY FEED -->
+  <div id="fsb">
+    <div class="fh">
+      <div class="fht"><span class="ldot"></span>ACTIVITY FEED</div>
+      <div class="fhs" id="fcount">Connecting…</div>
+    </div>
+    <div id="fl"><div class="fempty">CONNECTING TO FEED…</div></div>
+  </div>
+</div>
+
+<button id="ftoggle" onclick="document.getElementById('fsb').classList.toggle('open')">⚡</button>
+
+<script>
+// ── SUPABASE (public anon key) ───────────────────────
+const SUPA_URL  = 'YOUR_SUPABASE_URL_HERE';
+const SUPA_ANON = 'YOUR_SUPABASE_ANON_KEY_HERE';
+const _sb = supabase.createClient(SUPA_URL, SUPA_ANON);
+
+// ── CONSTANTS ────────────────────────────────────────
+const ROLES=[
+  {id:'nav',l:'Navegação Aérea',c:'rn'},{id:'plt',l:'Piloto/Comandante',c:'rp'},
+  {id:'met',l:'Meteorologia',c:'rm'},{id:'ais',l:'AIS / NOTAM',c:'ra'},
+  {id:'mnt',l:'Manutenção',c:'rx'},{id:'adm',l:'Administração',c:'rd'},
+  {id:'sci',l:'SCI',c:'rs'},{id:'gnd',l:'Equipe de Solo',c:'rg'},
+];
+const CATS=[
+  {id:'met',l:'Meteorologia',icon:'🌫️',acc:'var(--acc)'},
+  {id:'rwy',l:'Pista / Taxiway',icon:'✈️',acc:'var(--red)'},
+  {id:'equip',l:'Equipamento',icon:'📡',acc:'var(--amb)'},
+  {id:'obs',l:'Obstáculo',icon:'🚧',acc:'var(--purp)'},
+  {id:'ops',l:'Seg. Operacional',icon:'⚠️',acc:'var(--grn)'},
+];
+const CAT_DECAY={met:30,rwy:240,equip:240,obs:480,ops:480}; // minutes
+
+const roleById=id=>ROLES.find(r=>r.id===id)||{id:'gen',l:id,c:'rd'};
+const catById=id=>CATS.find(c=>c.id===id)||{id:'ops',l:id,icon:'⚠️',acc:'var(--grn)'};
+
+// ── USER STATE ───────────────────────────────────────
+let USER=null;
+function loadUser(){try{USER=JSON.parse(localStorage.getItem('ab_user')||'null');}catch{USER=null;}}
+function saveUser(u){USER=u;localStorage.setItem('ab_user',JSON.stringify(u));}
+function clearUser(){USER=null;localStorage.removeItem('ab_user');}
+
+// ── CLOCK ────────────────────────────────────────────
+function tick(){
+  const n=new Date();
+  document.getElementById('utime').textContent=n.toISOString().substr(11,8);
+  const D=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('udate').textContent=`${D[n.getUTCDay()]} ${n.getUTCDate()} ${M[n.getUTCMonth()]} ${n.getUTCFullYear()}`;
+}
+setInterval(tick,1000);tick();
+
+// ── PROFILE MODAL ────────────────────────────────────
+let _vis=true,_prole=null;
+function buildRoleGrid(){
+  document.getElementById('prg').innerHTML=ROLES.map(r=>
+    `<button class="rb${_prole===r.id?' sel':''}" data-id="${r.id}" onclick="selRole('${r.id}')">${r.l}</button>`
+  ).join('');
+}
+function selRole(id){_prole=id;document.querySelectorAll('.rb').forEach(b=>b.classList.toggle('sel',b.dataset.id===id));}
+function toggleVis(){
+  _vis=!_vis;
+  document.getElementById('pttr').classList.toggle('on',_vis);
+  document.getElementById('ptlbl').textContent=_vis?'Visible to other users':'Hidden from feed';
+  document.getElementById('ptsub').textContent=_vis?'Your briefing activity will appear in the feed':'Your activity will not be shown to others';
+}
+function openPModal(){
+  loadUser();_vis=USER?USER.visible:true;_prole=USER?USER.role:null;
+  document.getElementById('pmn').value=USER?.name||'';
+  document.getElementById('pmp').value=USER?.phone||'';
+  document.getElementById('pttr').classList.toggle('on',_vis);
+  document.getElementById('ptlbl').textContent=_vis?'Visible to other users':'Hidden from feed';
+  document.getElementById('ptsub').textContent=_vis?'Your briefing activity will appear in the feed':'Your activity will not be shown to others';
+  document.getElementById('pmtl').textContent=USER?'EDIT PROFILE':'CREATE PROFILE';
+  document.getElementById('pmlb').style.display=USER?'':'none';
+  buildRoleGrid();
+  document.getElementById('pmodal').style.display='flex';
+}
+function closePModal(){document.getElementById('pmodal').style.display='none';}
+async function saveProfile(){
+  const name=document.getElementById('pmn').value.trim(),phone=document.getElementById('pmp').value.trim();
+  if(!name){toast('Name is required','warn');return;}
+  if(!_prole){toast('Select your role','warn');return;}
+  const btn=document.getElementById('pmsb');btn.textContent='SAVING…';btn.style.opacity='.6';btn.style.pointerEvents='none';
+  try{
+    let data;
+    if(USER?.id){const r=await fetch('/api/user',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:USER.id,name,phone:phone||null,role:_prole,visible:_vis})});data=await r.json();if(!r.ok)throw new Error(data.error);}
+    else{const r=await fetch('/api/user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone:phone||null,role:_prole,visible:_vis})});data=await r.json();if(!r.ok)throw new Error(data.error);}
+    saveUser(data);updateChip();closePModal();toast('Welcome, '+data.name+'!');
+  }catch(e){toast('Error: '+e.message,'warn');}
+  btn.textContent='▶ SAVE PROFILE';btn.style.opacity='';btn.style.pointerEvents='';
+}
+function logoutUser(){if(!confirm('Clear your profile from this device?'))return;clearUser();updateChip();closePModal();}
+function updateChip(){
+  loadUser();
+  const dot=document.getElementById('cdot');
+  document.getElementById('uname').textContent=USER?USER.name:'Sign in';
+  document.getElementById('urole').textContent=USER?roleById(USER.role).l.toUpperCase():'TAP TO CREATE PROFILE';
+  dot.classList.toggle('coff',!USER);
+}
+
+// ── NEW POST MODAL ───────────────────────────────────
+let _pcat=null,_photoFile=null,_photoPreviewURL=null;
+
+function buildCatGrid(){
+  document.getElementById('cat-grid').innerHTML=CATS.map(c=>
+    `<button class="cat-btn${_pcat===c.id?' sel':''}" onclick="selCat('${c.id}')"><span class="ci">${c.icon}</span>${c.l}</button>`
+  ).join('');
+}
+function selCat(id){_pcat=id;document.querySelectorAll('.cat-btn').forEach(b=>b.classList.toggle('sel',b.dataset?b.onclick?.toString().includes(`'${id}'`):false));buildCatGrid();}
+
+function openNModal(icao=''){
+  loadUser();
+  if(!USER){toast('Create a profile first to post reports','warn');openPModal();return;}
+  _pcat=null;_photoFile=null;_photoPreviewURL=null;
+  document.getElementById('np-icao').value=icao.toUpperCase();
+  document.getElementById('np-title').value='';
+  document.getElementById('np-body').value='';
+  document.getElementById('photo-preview').style.display='none';
+  document.getElementById('photo-prompt').style.display='';
+  document.getElementById('photo-drop').classList.remove('has-photo');
+  buildCatGrid();
+  document.getElementById('nmodal').style.display='flex';
+}
+function closeNModal(){document.getElementById('nmodal').style.display='none';}
+
+function onPhotoSelect(e){
+  const file=e.target.files[0];if(!file)return;
+  if(file.size>5*1024*1024){toast('Photo too large (max 5MB)','warn');return;}
+  _photoFile=file;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    _photoPreviewURL=ev.target.result;
+    document.getElementById('photo-preview').src=_photoPreviewURL;
+    document.getElementById('photo-preview').style.display='block';
+    document.getElementById('photo-prompt').style.display='none';
+    document.getElementById('photo-drop').classList.add('has-photo');
+  };
+  reader.readAsDataURL(file);
+}
+
+async function submitPost(){
+  const icao=document.getElementById('np-icao').value.trim().toUpperCase();
+  const title=document.getElementById('np-title').value.trim();
+  const body=document.getElementById('np-body').value.trim();
+  if(!icao||icao.length<2){toast('Enter a valid ICAO code','warn');return;}
+  if(!_pcat){toast('Select a category','warn');return;}
+  if(!title){toast('Title is required','warn');return;}
+  loadUser();if(!USER){toast('Create a profile first','warn');return;}
+
+  const btn=document.getElementById('npsb');btn.textContent='PUBLISHING…';btn.style.opacity='.6';btn.style.pointerEvents='none';
+
+  try{
+    let photo_url=null;
+    // Upload photo if present
+    if(_photoFile){
+      const fd=new FormData();fd.append('photo',_photoFile);
+      const ur=await fetch('/api/upload',{method:'POST',body:fd});
+      const uj=await ur.json();
+      if(!ur.ok)throw new Error('Photo upload failed: '+uj.error);
+      photo_url=uj.url;
+    }
+    const r=await fetch('/api/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:USER.id,icao,category:_pcat,title,body:body||null,photo_url})});
+    const d=await r.json();if(!r.ok)throw new Error(d.error);
+    closeNModal();toast('Report published for '+icao);
+    // If current briefing is for this ICAO, refresh reports section
+    const curDep=document.getElementById('dep').value.trim().toUpperCase();
+    const curArr=document.getElementById('arr').value.trim().toUpperCase();
+    if(icao===curDep||icao===curArr){
+      setTimeout(()=>refreshReports(icao),500);
+    }
+  }catch(e){toast('Error: '+e.message,'warn');}
+  btn.textContent='▶ PUBLISH REPORT';btn.style.opacity='';btn.style.pointerEvents='';
+}
+
+// ── REPORTS ─────────────────────────────────────────
+async function loadReports(icao){
+  const r=await fetch(`/api/posts?icao=${icao}`);
+  if(!r.ok)return[];
+  return r.json();
+}
+
+// Track confirmed posts in this session
+const _confirmed=new Set();
+function wasConfirmed(id){return _confirmed.has(id);}
+
+async function confirmPost(postId,btn){
+  loadUser();if(!USER){toast('Create a profile to confirm reports','warn');openPModal();return;}
+  btn.classList.add('confirming');
+  try{
+    const r=await fetch('/api/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({post_id:postId,user_id:USER.id})});
+    const d=await r.json();
+    if(r.status===409){_confirmed.add(postId);btn.classList.add('confirmed');btn.classList.remove('confirming');btn.innerHTML='✓ CONFIRMED';return;}
+    if(!r.ok)throw new Error(d.error);
+    _confirmed.add(postId);
+    btn.classList.add('confirmed');btn.classList.remove('confirming');
+    btn.innerHTML='✓ CONFIRMED';
+    // Update count in UI
+    const card=btn.closest('.rcard');
+    if(card){
+      const cc=card.querySelector('.confirm-count');
+      if(cc)cc.textContent=`${d.raw_confirms} confirm${d.raw_confirms!==1?'s':''}`;
+      // Extend decay bar
+      if(d.expires_at){
+        const fill=card.querySelector('.decay-fill');
+        const lbl=card.querySelector('.decay-label');
+        const mins=Math.max(0,Math.round((new Date(d.expires_at)-Date.now())/60000));
+        if(lbl)lbl.textContent=mins+'m';
+        const total=CAT_DECAY[card.dataset.cat]||30;
+        const pct=Math.min(100,Math.round((mins/total)*100));
+        if(fill){fill.style.width=pct+'%';fill.style.background=pct>50?'var(--grn)':pct>20?'var(--amb)':'var(--red)';}
+      }
+    }
+    toast('Confirmed — thank you for validating this report');
+  }catch(e){toast(e.message,'warn');btn.classList.remove('confirming');}
+}
+
+function repBadge(level){
+  const map={observer:'rep-observer OBSERVER',reporter:'rep-reporter REPORTER',trusted:'rep-trusted TRUSTED',expert:'rep-expert EXPERT'};
+  const v=(map[level]||map.observer).split(' ');
+  return`<span class="rep-badge ${v[0]}">${v[1]}</span>`;
+}
+
+function catStyle(cat){
+  const c=catById(cat);
+  return`color:${c.acc};border-color:${c.acc};background:${c.acc}18`;
+}
+
+function renderReportCard(p){
+  const now=Date.now();
+  const minsLeft=p.expires_at?Math.max(0,Math.round((new Date(p.expires_at)-now)/60000)):null;
+  const totalMins=CAT_DECAY[p.category]||30;
+  const pct=minsLeft!==null?Math.min(100,Math.round((minsLeft/totalMins)*100)):100;
+  const decayColor=pct>50?'var(--grn)':pct>20?'var(--amb)':'var(--red)';
+  const decayClass=pct<=20?'decay-crit':'';
+  const scoreHigh=p.score>=5;
+  const scoreMed=p.score>=2&&p.score<5;
+  const decayClass2=minsLeft!==null&&minsLeft<=10?'decaying':'';
+  const cat=catById(p.category);
+  const user=p.ab_users||{};
+  const alreadyConfirmed=wasConfirmed(p.id);
+  const isOwnPost=USER&&USER.id===user.id;
+
+  return`
+  <div class="rcard cat-${p.category} ${scoreHigh?'score-high':scoreMed?'score-med':''} ${decayClass2}" data-id="${p.id}" data-cat="${p.category}">
+    <div class="rc-top">
+      <div class="rc-main">
+        <div class="rc-cat" style="${catStyle(p.category)}">${cat.icon} ${cat.l.toUpperCase()}</div>
+        <div class="rc-title">${escHtml(p.title)}</div>
+        ${p.body?`<div class="rc-body">${escHtml(p.body)}</div>`:''}
+        <div class="rc-meta">
+          <span class="rc-author">${escHtml(user.name||'Unknown')}</span>
+          ${repBadge(user.rep_level||'observer')}
+          <span class="rc-time">${fmtAgo(p.created_at)}</span>
+        </div>
+      </div>
+      ${p.photo_url?`<img class="rc-photo" src="${p.photo_url}" alt="Report photo" onclick="openLightbox('${p.photo_url}')">`:''}
+    </div>
+    <div class="rc-bottom">
+      <div class="rc-decay">
+        <span class="decay-label ${decayClass}">${minsLeft!==null?minsLeft+'m':'∞'}</span>
+        <div class="decay-bar"><div class="decay-fill" style="width:${pct}%;background:${decayColor}"></div></div>
+      </div>
+      <div class="rc-confirms">
+        <span class="confirm-count">${p.raw_confirms} confirm${p.raw_confirms!==1?'s':''}</span>
+        ${scoreHigh?`<span class="score-chip hi">▲ SCORE ${p.score.toFixed(1)}</span>`:`<span class="score-chip">score ${p.score.toFixed(1)}</span>`}
+        ${!isOwnPost?`<button class="confirm-btn ${alreadyConfirmed?'confirmed':''}" onclick="confirmPost('${p.id}',this)">${alreadyConfirmed?'✓ CONFIRMED':'✓ CONFIRM'}</button>`:'<span style="font-family:var(--mono);font-size:.5rem;color:var(--txtd)">your report</span>'}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderReportsPanel(icao,posts){
+  const html=posts.length===0
+    ?`<div class="smsg" style="padding:16px"><p>NO ACTIVE REPORTS FOR ${icao}</p></div>`
+    :posts.map(renderReportCard).join('');
+  return`
+  <div class="panel full" id="rp-${icao}">
+    <div class="ctag" style="background:#1a3a5c;color:var(--acc2)">REPORTS</div>
+    <div class="ph">
+      <div class="phl">
+        <div class="ptag">FIELD REPORTS — COMMUNITY</div>
+        <div class="picao">${icao}</div>
+      </div>
+      <div class="phr">
+        <span class="badge bb">${posts.length} ACTIVE</span>
+        <button class="btn-new-post" onclick="openNModal('${icao}')">+ NEW REPORT</button>
+      </div>
+    </div>
+    <div class="pb">
+      <div style="font-family:var(--mono);font-size:.54rem;color:rgba(255,171,0,.6);padding:6px 8px;border:1px solid rgba(255,171,0,.1);background:rgba(255,171,0,.03);margin-bottom:10px;line-height:1.7">
+        ⚠ Community observations — <strong style="color:rgba(255,171,0,.8)">not official.</strong> Verify with METAR/TAF/NOTAM before any operational decision.
+        Reports decay over time unless confirmed by other users.
+      </div>
+      <div class="rp-list">${html}</div>
+    </div>
+  </div>`;
+}
+
+async function refreshReports(icao){
+  const posts=await loadReports(icao);
+  const slot=document.getElementById(`rp-${icao}`);
+  if(slot)slot.outerHTML=renderReportsPanel(icao,posts);
+}
+
+// ── LIGHTBOX ─────────────────────────────────────────
+function openLightbox(url){
+  document.getElementById('lb-img').src=url;
+  document.getElementById('lightbox').style.display='flex';
+}
+
+// ── ACTIVITY FEED ────────────────────────────────────
+let _feed=[];
+function timeSince(iso){const s=Math.floor((Date.now()-new Date(iso))/1000);if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';return Math.floor(s/3600)+'h ago';}
+function fmtAgo(iso){return timeSince(iso);}
+function fmtUTC(iso){return new Date(iso).toISOString().substr(11,5)+'Z';}
+function buildFI(item){
+  const u=item.ab_users||{};const role=roleById(u.role||'gen');
+  const arr=item.icao_arr?` <span class="fiarr">→ ${item.icao_arr}</span>`:'';
+  return`<div class="fi"><div class="fit"><span class="fin">${u.name||'Unknown'}</span><span class="fir ${role.c}">${role.l}</span></div><div class="fib">checked <em>${item.icao_dep}</em>${arr}</div><div class="fitime">${fmtUTC(item.created_at)} · ${timeSince(item.created_at)}</div></div>`;
+}
+function renderFeed(){
+  const list=document.getElementById('fl'),count=document.getElementById('fcount');
+  if(!_feed.length){list.innerHTML='<div class="fempty">NO ACTIVITY YET<br>BE THE FIRST TO BRIEF</div>';count.textContent='0 events';return;}
+  list.innerHTML=_feed.map(buildFI).join('');
+  count.textContent=`${_feed.length} event${_feed.length!==1?'s':''} · live`;
+}
+async function loadFeed(){
+  try{const r=await fetch('/api/activity?limit=50');if(!r.ok)throw new Error();_feed=await r.json();renderFeed();}
+  catch{document.getElementById('fl').innerHTML='<div class="fempty">FEED UNAVAILABLE</div>';}
+}
+function subscribeRT(){
+  if(SUPA_URL.includes('YOUR_'))return;
+  _sb.channel('ab_act').on('postgres_changes',{event:'INSERT',schema:'public',table:'ab_activity'},async p=>{
+    try{
+      const{data:u}=await _sb.from('ab_users').select('id,name,role,visible').eq('id',p.new.user_id).single();
+      if(!u?.visible)return;
+      _feed=[{...p.new,ab_users:u},..._feed].slice(0,50);renderFeed();
+    }catch{}
+  }).subscribe();
+}
+setInterval(()=>{if(_feed.length)renderFeed();},60000);
+
+async function logActivity(dep,arr){
+  loadUser();if(!USER?.id)return;
+  try{await fetch('/api/activity',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:USER.id,icao_dep:dep,icao_arr:arr||null})});}catch{}
+}
+
+// ── BRIEFING ENGINE ───────────────────────────────────
+document.querySelectorAll('.icao').forEach(el=>{
+  el.addEventListener('input',()=>el.value=el.value.toUpperCase().replace(/[^A-Z]/g,''));
+  el.addEventListener('keydown',e=>{if(e.key==='Enter')runBriefing();});
+});
+document.getElementById('np-icao').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase().replace(/[^A-Z]/g,''));
+const isBR=i=>/^SB[A-Z]{2}$/i.test(i);
+
+async function apiGet(p){const r=await fetch(p);const j=await r.json();if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);return j;}
+async function fetchMetar(i){return(await apiGet(`/api/metar?icao=${i}`)).metar;}
+async function fetchTaf(i){return(await apiGet(`/api/taf?icao=${i}`)).taf;}
+async function fetchNotam(i){return apiGet(`/api/notam?icao=${i}`);}
+async function callAI(prompt){const r=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});const d=await r.json();return d.text||null;}
+async function fetchAD(icao){
+  const[mr,tr,nr]=await Promise.allSettled([fetchMetar(icao),fetchTaf(icao),fetchNotam(icao)]);
+  return{icao,metar:mr.status==='fulfilled'?mr.value:null,metarErr:mr.status==='rejected'?mr.reason?.message:null,taf:tr.status==='fulfilled'?tr.value:null,tafErr:tr.status==='rejected'?tr.reason?.message:null,notam:nr.status==='fulfilled'?nr.value:null,notamErr:nr.status==='rejected'?nr.reason?.message:null};
+}
+
+function pM(raw){
+  if(!raw)return{};const d={};
+  const wm=raw.match(/\b(VRB|\d{3})(\d{2,3})(G(\d{2,3}))?KT\b/);
+  if(wm){d.wdir=wm[1]==='VRB'?'VRB':wm[1]+'°';d.wspdS=wm[2]+'KT';d.wgust=wm[4]?'G'+wm[4]+'KT':null;}
+  const ck=/CAVOK/i.test(raw);if(ck){d.vis='9999';d.cavok=true;}else{const vm=raw.match(/\b(\d{4})\b/);if(vm)d.vis=vm[1];}
+  const clouds=[];const cx=/(FEW|SCT|BKN|OVC|SKC|NSC)(\d{3})?(CB|TCU)?/g;let m;
+  while((m=cx.exec(raw))!==null)clouds.push({cov:m[1],alt:m[2]?parseInt(m[2])*100:null,tp:m[3]||''});
+  d.clouds=clouds;const cl=clouds.find(c=>(c.cov==='BKN'||c.cov==='OVC')&&c.alt!==null);d.ceil=cl?cl.alt:(ck?9999:null);
+  const tm=raw.match(/\b(M?)(\d{2})\/(M?)(\d{2})\b/);if(tm){d.temp=(tm[1]?'-':'')+tm[2]+'°C';d.dew=(tm[3]?'-':'')+tm[4]+'°C';}
+  const qm=raw.match(/\bQ(\d{4})\b/);if(qm)d.qnh=qm[1]+' hPa';
+  const am=raw.match(/\bA(\d{4})\b/);if(am)d.qnh=(parseInt(am[1])/100).toFixed(2)+' inHg';
+  const wx=raw.match(/\b(-|\+|VC)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS|TS|SH|FZ)\w*\b/g);
+  d.wx=wx?wx.join(' '):null;d.auto=/\bAUTO\b/.test(raw);const ti=raw.match(/\b\d{6}Z\b/);d.t=ti?ti[0]:null;return d;
+}
+function fc2(dec){
+  const v=parseInt(dec.vis)||(dec.cavok?9999:0),c=dec.ceil??9999;
+  if(v>=5000&&c>=1500)return{cat:'VMC',b:'bg',d:'dg',c:'g'};
+  if(v>=1600&&c>=500) return{cat:'MVFR',b:'ba',d:'da',c:'a'};
+  if(v>=800 &&c>=200) return{cat:'IFR',b:'br',d:'dr',c:'r'};
+  return                    {cat:'LIFR',b:'br',d:'dr',c:'r'};
+}
+const vC=v=>{const n=parseInt(v)||0;if(n>=5000||v==='9999')return'ok';if(n>=1500)return'warn';return'crit';};
+const cC=c=>{if(c===null||c===undefined)return'';if(c>=1500)return'ok';if(c>=500)return'warn';return'crit';};
+function hlM(r){if(!r)return'';return r.replace(/\b(\d{6}Z)\b/g,'<span class="tm">$1</span>').replace(/\b(VRB|\d{3})(\d{2,3})(G\d{2,3})?KT\b/g,'<span class="tw">$&</span>').replace(/\b(\d{4})\b(?=\s)/g,'<span class="tv">$1</span>').replace(/\bCAVOK\b/g,'<span class="tv">CAVOK</span>').replace(/(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU)?/g,'<span class="tc">$&</span>').replace(/\bM?\d{2}\/M?\d{2}\b/g,'<span class="tt">$&</span>').replace(/\b[QA]\d{4}\b/g,'<span class="tq">$&</span>').replace(/\b(-|\+|VC)?(TS|SH|FZ|DZ|RA|SN|BR|FG|HZ)\w*\b/g,'<span class="tx">$&</span>');}
+function fmtT(r){if(!r)return'';return r.replace(/(BECMG|TEMPO|FM\d{6}|PROB\d{2}(?:\s+TEMPO)?)/g,'\n$1').split('\n').map(l=>{l=l.trim();if(!l)return'';return l.replace(/(BECMG|TEMPO|FM\d{6}|PROB\d{2})/g,'<span class="tp2">$1</span>').replace(/\bCAVOK\b|NSW|SKC|NSC/g,'<span class="tg2">$&</span>').replace(/\b(\+TS|TS\w+|\+SN|\+RA|FZRA)\b/g,'<span class="tr2">$&</span>');}).join('\n');}
+const CRIT=[/RWY.{0,10}CLSD|CLSD.{0,10}RWY/i,/RUNWAY.{0,10}CLOS/i,/PISTA.{0,10}FECHA/i,/ILS.{0,6}(U\/S|INOP|UNSERV)/i,/LOC.{0,6}(U\/S|INOP)/i,/GS.{0,6}(U\/S|INOP)/i,/VOR.{0,6}(U\/S|INOP)/i,/NDB.{0,6}(U\/S|INOP)/i,/AIRPORT.{0,10}CLSD|AD.{0,4}CLSD/i,/HAZARD/i];
+const nsev=t=>CRIT.some(r=>r.test(t))?'crit':/TWY|TAXIWAY|LGT.*U\/S/i.test(t)?'warn':'info';
+const ncat=t=>{ if(/RWY|RUNWAY|PISTA/i.test(t))return{l:'RWY',c:'nr2'}; if(/ILS|LOC|GS|GP/i.test(t))return{l:'ILS',c:'na2'}; if(/VOR|NDB|DME/i.test(t))return{l:'NAV',c:'na2'}; if(/TWY|TAXIWAY/i.test(t))return{l:'TWY',c:'na2'}; if(/TWR|TOWER|ATC/i.test(t))return{l:'ATC',c:'nb2'}; return{l:'GEN',c:'ng2'}; };
+function normN(raw){
+  if(!raw)return[];let items=[];
+  if(raw.items)items=raw.items;else if(raw.notam)items=Array.isArray(raw.notam)?raw.notam:[raw.notam];else if(Array.isArray(raw))items=raw;
+  return items.map(n=>{const p2=n.properties||n;const cr=p2.coreNOTAMData?.notam;const text=cr?.text||cr?.originalText||p2.text||p2.itemE||p2.e||p2.body||n.text||n.itemE||JSON.stringify(n).substring(0,200);const id=cr?.id||p2.id||p2.notamId||n.id||'?';const from=cr?.effectiveStart||p2.startValidity||p2.from||p2.b||'';const to=cr?.effectiveEnd||p2.endValidity||p2.to||p2.c||'';return{id,text,from,to,sev:nsev(text),cat:ncat(text)};}).filter(n=>n.sev!=='info'||n.cat.l!=='GEN').sort((a,b)=>({crit:0,warn:1,info:2})[a.sev]-({crit:0,warn:1,info:2})[b.sev]).slice(0,12);
+}
+
+function rMETAR(data){
+  const raw=data.metar||'',dec=pM(raw),f=fc2(dec);
+  const vD=dec.cavok?'CAVOK':dec.vis?(parseInt(dec.vis)>=9999?'≥10 km':parseInt(dec.vis)+'m'):'N/A';
+  const cD=dec.ceil===9999?'UNLIM':dec.ceil?dec.ceil+'ft':dec.cavok?'UNLIM':'N/A';
+  const cH=dec.clouds?.filter(c=>c.alt).map(c=>`<span style="color:var(--txtd)">${c.cov}</span><span style="color:var(--txt)">${c.alt}ft</span>${c.tp?`<span style="color:var(--red);margin-left:2px">${c.tp}</span>`:''}`).join(' · ')||(dec.cavok?'<span style="color:var(--grn)">CAVOK</span>':'—');
+  return`<div class="panel"><div class="ctag ${f.c}">METAR</div><div class="ph"><div class="phl"><div class="ptag">CURRENT CONDITIONS</div><div class="picao">${data.icao}</div></div><div class="phr">${dec.auto?`<span class="badge bb">AUTO</span>`:''}<span class="badge ${f.b}"><span class="dot ${f.d}"></span>${f.cat}</span>${dec.t?`<span style="font-family:var(--mono);font-size:.56rem;color:var(--txtd)">${dec.t}</span>`:''}</div></div><div class="pb">${data.metarErr?`<div class="err">⚠ ${data.metarErr}</div>`:''} ${raw?`<div class="raw">${hlM(raw)}</div>`:''}<div class="dgrid"><div class="dc"><div class="dl">WIND DIR</div><div class="dv">${dec.wdir||'—'}</div></div><div class="dc"><div class="dl">WIND SPD</div><div class="dv ${dec.wgust?'warn':''}">${dec.wspdS||'—'}</div>${dec.wgust?`<div class="ds">${dec.wgust}</div>`:''}</div><div class="dc"><div class="dl">VISIBILITY</div><div class="dv ${vC(dec.vis)}">${vD}</div></div><div class="dc"><div class="dl">CEILING</div><div class="dv ${cC(dec.ceil)}">${cD}</div></div><div class="dc"><div class="dl">TEMP / DEW</div><div class="dv">${dec.temp||'—'}/${dec.dew||'—'}</div></div><div class="dc"><div class="dl">QNH/ALTIM</div><div class="dv">${dec.qnh||'—'}</div></div></div>${dec.wx?`<div style="padding:5px 9px;background:rgba(255,80,80,.07);border:1px solid rgba(255,80,80,.2);border-left:3px solid var(--red);font-family:var(--mono);font-size:.7rem;color:var(--red);margin-top:4px">⚡ ${dec.wx}</div>`:''} ${dec.clouds?.filter(c=>c.alt).length?`<div style="margin-top:6px;font-size:.62rem;color:var(--txtd);font-family:var(--mono)">CLOUDS: ${cH}</div>`:''}</div></div>`;
+}
+function rTAF(data){
+  const raw=data.taf||'',val=raw.match(/\b(\d{4}\/\d{4})\b/);
+  return`<div class="panel"><div class="ctag">TAF</div><div class="ph"><div class="phl"><div class="ptag">FORECAST</div><div class="picao">${data.icao}</div></div>${val?`<div style="font-family:var(--mono);font-size:.56rem;color:var(--acc)">VALID ${val[1]}</div>`:''}</div><div class="pb">${data.tafErr?`<div class="err">⚠ ${data.tafErr}</div>`:''} ${raw?`<div class="tbox">${fmtT(raw)}</div>`:'<div class="smsg"><p>TAF NOT AVAILABLE</p></div>'}</div></div>`;
+}
+async function rNOTAM(data){
+  const ns=normN(data.notam),src=isBR(data.icao)?'AISWEB':'FAA',crit=ns.filter(n=>n.sev==='crit').length;
+  let ai=null;
+  if(ns.length||data.metar){const nt=ns.map(n=>`[${n.id}] ${n.text}`).join('\n')||'No critical NOTAMs';ai=await callAI(`Aviation briefer. Concise briefing (max 3 sentences) for ${data.icao} in English. Focus on ops impact: weather, runway/navaid, ATC. Direct.\n\nMETAR: ${data.metar||'N/A'}\nNOTAMs:\n${nt}`).catch(()=>null);}
+  const lH=ns.length===0?`<div class="smsg" style="padding:12px"><p>NO CRITICAL NOTAMs ACTIVE</p></div>`:ns.map(n=>`<div class="nitem ${n.sev}"><div class="nhdr"><span class="nid">${n.id}</span><span class="ntag ${n.cat.c}">${n.cat.l}</span>${n.sev==='crit'?`<span style="color:var(--red);font-family:var(--disp);font-size:.44rem;letter-spacing:2px">◆ CRITICAL</span>`:''}</div><div class="ntxt">${n.text.substring(0,300)}${n.text.length>300?'…':''}</div>${n.from||n.to?`<div class="nval">📅 ${n.from||'?'} → ${n.to||'PERM'}</div>`:''}</div>`).join('');
+  return`<div class="panel"><div class="ctag ${crit>0?'r':'a'}">NOTAM</div><div class="ph"><div class="phl"><div class="ptag">CRITICAL NOTAMs · ${src}</div><div class="picao">${data.icao}</div></div><span class="badge ${crit>0?'br':'ba'}">${ns.length} ACTIVE</span></div><div class="pb">${data.notamErr?`<div class="err">⚠ ${data.notamErr}</div>`:''} ${ai?`<div class="aibox"><div class="ailbl">✦ AI BRIEFER</div><div class="aitxt">${ai}</div></div>`:''}<div class="nlist">${lH}</div></div></div>`;
+}
+async function rROUTE(dep,arr,dD,aD){
+  const dR=dD?.metar||'',aR=aD?.metar||'',dD2=pM(dR),aD2=pM(aR),df=fc2(dD2),af=fc2(aD2),dN=normN(dD?.notam),aN=normN(aD?.notam);
+  const ai=await callAI(`Aviation briefer. Route briefing (max 4 sentences) ${dep}→${arr} English. Weather, NOTAMs, recommendation.\n\nMETAR ${dep}: ${dR||'N/A'}\nMETAR ${arr}: ${aR||'N/A'}\nNOTAMs ${dep}: ${dN.map(n=>n.text).join('; ')||'none'}\nNOTAMs ${arr}: ${aN.map(n=>n.text).join('; ')||'none'}`).catch(()=>null);
+  const mkR=(dec,icao,f2)=>`<div><div style="font-family:var(--disp);font-size:.4rem;letter-spacing:2px;color:var(--txtd);margin-bottom:4px">${icao} — ${f2.cat}</div><div style="font-family:var(--mono);font-size:.66rem;color:var(--txtd);line-height:1.9">VIS <span class="${vC(dec.vis)}">${dec.cavok?'CAVOK':dec.vis?(parseInt(dec.vis)+'m'):'N/A'}</span>  CEIL <span class="${cC(dec.ceil)}">${dec.ceil===9999?'UNLIM':dec.ceil?(dec.ceil+'ft'):'N/A'}</span>  WIND <span style="color:var(--txt)">${dec.wdir||'—'} ${dec.wspdS||'—'}</span>  QNH <span style="color:var(--txt)">${dec.qnh||'N/A'}</span>${dec.wx?`<br><span style="color:var(--red)">WX: ${dec.wx}</span>`:''}</div></div>`;
+  return`<div class="panel full"><div class="ctag">ROUTE</div><div class="ph"><div class="phl"><div class="ptag">ROUTE BRIEFING</div><div class="ricao">${dep} <em>→</em> ${arr}</div></div><div class="phr"><span class="badge ${df.b}"><span class="dot ${df.d}"></span>${dep}: ${df.cat}</span><span class="badge ${af.b}"><span class="dot ${af.d}"></span>${arr}: ${af.cat}</span></div></div><div class="pb"><div class="rcols">${mkR(dD2,dep,df)}${mkR(aD2,arr,af)}</div>${ai?`<div class="aibox"><div class="ailbl">✦ AI ROUTE BRIEFING</div><div class="aitxt">${ai}</div></div>`:`<div class="aibox"><div class="ailbl">✦ ROUTE SUMMARY</div><div class="aitxt" style="font-family:var(--mono);font-size:.66rem;color:var(--txtd)">Set ANTHROPIC_KEY in Vercel env vars to enable AI briefing.</div></div>`}</div></div>`;
+}
+
+// ── MAIN ─────────────────────────────────────────────
+async function runBriefing(){
+  const dep=document.getElementById('dep').value.trim().toUpperCase(),arr=document.getElementById('arr').value.trim().toUpperCase();
+  if(!dep||dep.length<4){toast('Enter a valid 4-letter ICAO code','warn');return;}
+  const btn=document.getElementById('bgo');btn.classList.add('busy');btn.textContent='⟳  LOADING…';
+  const app=document.getElementById('app');
+  app.innerHTML=`<div class="full"><div class="lbar"></div><div class="smsg"><div class="spin"></div><p>FETCHING DATA · ${dep}${arr?' → '+arr:''}</p></div></div>`;
+  try{
+    const tasks=[fetchAD(dep)];if(arr&&arr.length===4)tasks.push(fetchAD(arr));
+    const[r1,r2]=await Promise.allSettled(tasks);
+    const dD=r1.status==='fulfilled'?r1.value:null,aD=arr&&r2?.status==='fulfilled'?r2.value:null;
+    let html='';
+    if(arr&&aD)html+=`<div id="rslot" class="full"><div class="smsg"><div class="spin"></div><p>BUILDING ROUTE BRIEFING…</p></div></div>`;
+    if(dD)html+=rMETAR(dD)+rTAF(dD);if(aD)html+=rMETAR(aD)+rTAF(aD);
+    html+=`<div id="ndep" class="panel"><div class="smsg"><div class="spin"></div><p>LOADING NOTAMs…</p></div></div>`;
+    if(arr&&aD)html+=`<div id="narr" class="panel"><div class="smsg"><div class="spin"></div><p>LOADING NOTAMs…</p></div></div>`;
+    // Reports placeholders
+    html+=`<div id="rep-${dep}" class="full"><div class="smsg"><div class="spin"></div><p>LOADING REPORTS ${dep}…</p></div></div>`;
+    if(arr&&aD)html+=`<div id="rep-${arr}" class="full"><div class="smsg"><div class="spin"></div><p>LOADING REPORTS ${arr}…</p></div></div>`;
+    app.innerHTML=html;
+    // Async panels
+    if(arr&&aD)rROUTE(dep,arr,dD,aD).then(h=>{const e=document.getElementById('rslot');if(e)e.outerHTML=h;});
+    if(dD)rNOTAM(dD).then(h=>{const e=document.getElementById('ndep');if(e)e.outerHTML=h;});
+    if(arr&&aD)rNOTAM(aD).then(h=>{const e=document.getElementById('narr');if(e)e.outerHTML=h;});
+    // Reports
+    loadReports(dep).then(posts=>{const e=document.getElementById(`rep-${dep}`);if(e)e.outerHTML=renderReportsPanel(dep,posts);});
+    if(arr&&aD)loadReports(arr).then(posts=>{const e=document.getElementById(`rep-${arr}`);if(e)e.outerHTML=renderReportsPanel(arr,posts);});
+    logActivity(dep,arr||null);
+  }catch(e){app.innerHTML=`<div class="full"><div class="err" style="font-size:.74rem;padding:12px">⚠ ${e.message}</div></div>`;}
+  btn.classList.remove('busy');btn.textContent='▶ BRIEF';
+}
+
+// ── UTILS ─────────────────────────────────────────────
+function escHtml(s){if(!s)return'';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(msg,type='info'){
+  const t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;padding:9px 18px;font-family:var(--mono);font-size:.65rem;letter-spacing:1px;border:1px solid;backdrop-filter:blur(8px);animation:fup .2s ease;white-space:nowrap;';
+  t.style.color=type==='warn'?'var(--amb)':'var(--acc)';t.style.borderColor=type==='warn'?'var(--amb)':'var(--acc)';t.style.background=type==='warn'?'rgba(255,171,0,.12)':'rgba(0,170,255,.12)';
+  t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3000);
+}
+
+// ── INIT ──────────────────────────────────────────────
+loadUser();updateChip();loadFeed();subscribeRT();
+fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:'ping'})}).then(r=>r.json()).then(d=>{if(!d.error?.includes('not configured'))document.getElementById('aipill').classList.add('on');}).catch(()=>{});
+// Trigger expire cron every 5min
+setInterval(()=>fetch('/api/posts?expire=1',{method:'POST'}).catch(()=>{}),5*60*1000);
+</script>
+</body>
+</html>
+
+<!-- ═══ DUMONT VOICE BRIEFING ═══════════════════════ -->
+<div id="dumont-btn">
+  <button id="dumont-trigger" onclick="dumontActivate()" title="Dumont — Voice Briefing">
+    <span class="mic-icon">🎙</span>
+    <div class="voice-wave"><div class="vb"></div><div class="vb"></div><div class="vb"></div><div class="vb"></div><div class="vb"></div></div>
+  </button>
+  <div id="dumont-label">DUMONT</div>
+</div>
+<div id="dumont-hint">💬 "Dumont, condições de SBSP" &nbsp;·&nbsp; "Dumont, route SBGR to SBBE"</div>
+<div id="dumont-bubble">
+  <div class="db-head">
+    <div class="db-name"><span class="ldot"></span>DUMONT</div>
+    <button class="db-close" onclick="closeBubble()">✕</button>
+  </div>
+  <div class="db-heard" id="db-heard"></div>
+  <div class="db-reply" id="db-reply"></div>
+  <div class="db-footer">
+    <button class="db-replay" onclick="replayVoice()">▶ REPLAY</button>
+    <button class="db-brief" id="db-brief" onclick="dumontLoadBriefing()">⊞ OPEN BRIEFING</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  DUMONT — Voice Briefing System
+// ═══════════════════════════════════════════════════════
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let _recog = null;
+let _dumontState = 'idle'; // idle | hint | listening | thinking | speaking
+let _lastReply = '';
+let _lastIcao = null;
+let _lastIcaoArr = null;
+let _wakeActive = false;   // true when wake word detected, waiting for command
+let _wakeTimer = null;
+
+// ── INIT RECOGNITION ─────────────────────────────────
+function initRecog(lang) {
+  if (!SpeechRecognition) return null;
+  const r = new SpeechRecognition();
+  r.continuous = false;
+  r.interimResults = false;
+  r.lang = lang || 'pt-BR';
+  return r;
+}
+
+// ── STATE MACHINE ─────────────────────────────────────
+function dumontSetState(s) {
+  _dumontState = s;
+  const btn = document.getElementById('dumont-trigger');
+  const lbl = document.getElementById('dumont-label');
+  btn.className = s === 'idle' ? '' : s;
+  lbl.className = s === 'idle' ? '' : s;
+  const labels = {
+    idle: 'DUMONT',
+    hint: 'DUMONT',
+    listening: 'OUVINDO…',
+    thinking: 'PROCESSANDO…',
+    speaking: 'FALANDO…'
+  };
+  lbl.textContent = labels[s] || 'DUMONT';
+}
+
+// ── MAIN ACTIVATE (button click) ─────────────────────
+function dumontActivate() {
+  if (_dumontState === 'speaking') { stopVoice(); closeBubble(); return; }
+  if (_dumontState === 'listening' || _dumontState === 'thinking') return;
+
+  // Show hint first if idle
+  if (_dumontState === 'idle') {
+    showHint();
+    setTimeout(() => startListening(), 600);
+    return;
+  }
+  startListening();
+}
+
+function showHint() {
+  const h = document.getElementById('dumont-hint');
+  h.style.display = 'block';
+  setTimeout(() => { h.style.display = 'none'; }, 4000);
+}
+
+// ── SPEECH RECOGNITION ───────────────────────────────
+function startListening() {
+  if (!SpeechRecognition) {
+    toast('Seu navegador não suporta reconhecimento de voz. Use Chrome.', 'warn');
+    return;
+  }
+  document.getElementById('dumont-hint').style.display = 'none';
+
+  // Detect language from browser setting, default pt-BR
+  const browserLang = navigator.language || 'pt-BR';
+  const lang = browserLang.startsWith('en') ? 'en-US' : 'pt-BR';
+
+  _recog = initRecog(lang);
+  dumontSetState('listening');
+
+  _recog.onresult = (e) => {
+    const transcript = e.results[0][0].transcript.trim();
+    handleTranscript(transcript, lang);
+  };
+
+  _recog.onerror = (e) => {
+    if (e.error === 'no-speech') {
+      dumontSetState('idle');
+    } else if (e.error === 'not-allowed') {
+      toast('Permissão de microfone negada.', 'warn');
+      dumontSetState('idle');
+    } else {
+      dumontSetState('idle');
+    }
+  };
+
+  _recog.onend = () => {
+    if (_dumontState === 'listening') dumontSetState('idle');
+  };
+
+  _recog.start();
+}
+
+// ── TRANSCRIPT HANDLER ────────────────────────────────
+async function handleTranscript(text, lang) {
+  dumontSetState('thinking');
+
+  // Check for wake word "Dumont" — if present, strip it and continue
+  // If NOT present, still process (button was explicitly pressed)
+  const cleanText = text.replace(/\bdumont\b/gi, '').trim();
+  const queryText = cleanText || text;
+
+  if (!queryText) {
+    dumontSetState('idle');
+    return;
+  }
+
+  showBubble(queryText, null);
+
+  try {
+    const r = await fetch('/api/voice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: queryText, lang })
+    });
+    const d = await r.json();
+
+    if (!r.ok) throw new Error(d.error || 'Voice API error');
+
+    _lastReply = d.reply;
+    _lastIcao = d.icao;
+    _lastIcaoArr = d.icao_arr;
+
+    showBubble(queryText, d.reply, d.icao, d.icao_arr);
+    speakReply(d.reply, lang);
+
+    // Also fill the ICAO inputs for easy "open briefing"
+    if (d.icao) {
+      document.getElementById('dep').value = d.icao;
+      if (d.icao_arr) document.getElementById('arr').value = d.icao_arr;
+    }
+
+  } catch (e) {
+    const errMsg = lang.startsWith('en')
+      ? 'Unable to retrieve briefing data. Please try again.'
+      : 'Não foi possível obter os dados. Tente novamente.';
+    showBubble(queryText, errMsg, null, null);
+    speakReply(errMsg, lang);
+  }
+}
+
+// ── SPEECH SYNTHESIS ─────────────────────────────────
+let _utterance = null;
+
+function speakReply(text, lang) {
+  stopVoice();
+  if (!window.speechSynthesis) { dumontSetState('idle'); return; }
+
+  dumontSetState('speaking');
+  _utterance = new SpeechSynthesisUtterance(text);
+  _utterance.lang = lang || 'pt-BR';
+  _utterance.rate = 0.95;
+  _utterance.pitch = 1.0;
+  _utterance.volume = 1.0;
+
+  // Try to pick a good voice
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v =>
+    v.lang === _utterance.lang && v.localService
+  ) || voices.find(v => v.lang.startsWith(_utterance.lang.substr(0,2)));
+  if (preferred) _utterance.voice = preferred;
+
+  _utterance.onend = () => dumontSetState('idle');
+  _utterance.onerror = () => dumontSetState('idle');
+
+  window.speechSynthesis.speak(_utterance);
+}
+
+function stopVoice() {
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  _utterance = null;
+}
+
+function replayVoice() {
+  if (_lastReply) {
+    const lang = document.getElementById('db-heard')?.dataset?.lang || 'pt-BR';
+    speakReply(_lastReply, lang);
+  }
+}
+
+// ── BUBBLE UI ─────────────────────────────────────────
+function showBubble(heard, reply, icao, icaoArr) {
+  const bubble = document.getElementById('dumont-bubble');
+  const heardEl = document.getElementById('db-heard');
+  const replyEl = document.getElementById('db-reply');
+  const briefBtn = document.getElementById('db-brief');
+
+  heardEl.innerHTML = `YOU: <span>${escHtml(heard)}</span>`;
+  heardEl.dataset.lang = navigator.language || 'pt-BR';
+
+  if (!reply) {
+    replyEl.innerHTML = `<span class="spin" style="margin:0 auto;display:block;width:13px;height:13px"></span>`;
+  } else {
+    replyEl.textContent = reply;
+  }
+
+  if (icao) {
+    const arr = icaoArr ? ` → ${icaoArr}` : '';
+    briefBtn.textContent = `⊞ BRIEF ${icao}${arr}`;
+    briefBtn.style.display = '';
+  } else {
+    briefBtn.style.display = 'none';
+  }
+
+  bubble.style.display = 'block';
+}
+
+function closeBubble() {
+  stopVoice();
+  document.getElementById('dumont-bubble').style.display = 'none';
+  dumontSetState('idle');
+}
+
+function dumontLoadBriefing() {
+  closeBubble();
+  if (_lastIcao) {
+    document.getElementById('dep').value = _lastIcao;
+    document.getElementById('arr').value = _lastIcaoArr || '';
+    runBriefing();
+  }
+}
+
+// ── WAKE WORD PASSIVE DETECTION ────────────────────────
+// Separate always-on recognizer that only listens for "Dumont"
+let _wakeRecog = null;
+let _wakeEnabled = false;
+
+function startWakeWord() {
+  if (!SpeechRecognition || _wakeEnabled) return;
+  _wakeEnabled = true;
+
+  function listen() {
+    if (!_wakeEnabled) return;
+    _wakeRecog = initRecog(navigator.language || 'pt-BR');
+    _wakeRecog.continuous = false;
+    _wakeRecog.interimResults = false;
+
+    _wakeRecog.onresult = (e) => {
+      const t = e.results[0][0].transcript.toLowerCase();
+      if (t.includes('dumont')) {
+        // Wake word detected — now start full command listening
+        if (_dumontState === 'idle') {
+          // If they said more after "Dumont", use the full text as command
+          const afterWake = t.replace(/dumont/gi, '').trim();
+          if (afterWake.length > 3) {
+            handleTranscript(afterWake, navigator.language || 'pt-BR');
+          } else {
+            // Just wake word — activate mic for command
+            startListening();
+          }
+        }
+      }
+    };
+
+    _wakeRecog.onend = () => {
+      // Restart to keep listening
+      if (_wakeEnabled && _dumontState === 'idle') {
+        setTimeout(listen, 300);
+      }
+    };
+
+    _wakeRecog.onerror = () => {
+      if (_wakeEnabled && _dumontState === 'idle') {
+        setTimeout(listen, 2000);
+      }
+    };
+
+    try { _wakeRecog.start(); } catch {}
+  }
+
+  listen();
+}
+
+// Start wake word after user first interacts (requires user gesture for mic)
+document.getElementById('dumont-trigger').addEventListener('click', () => {
+  // After first click, enable wake word for subsequent uses
+  setTimeout(() => startWakeWord(), 3000);
+}, { once: true });
+
+// Load voices async
+if (window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+</script>
