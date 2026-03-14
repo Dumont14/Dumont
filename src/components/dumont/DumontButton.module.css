@@ -1,15 +1,18 @@
 /* src/components/dumont/DumontButton.module.css */
+
 .wrap {
   position: fixed;
-  bottom: 88px;        /* subiu: antes 28px desktop, agora acima do bottom nav */
+  bottom: 88px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 500;        /* acima do bottom nav (400) */
+  z-index: 500;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
 }
+
+/* ── Botão principal ─────────────────────────────────── */
 .btn {
   width: 58px; height: 58px;
   border-radius: 50%;
@@ -25,6 +28,7 @@
   box-shadow: 0 4px 20px rgba(0,170,255,.25);
 }
 .btn:hover { box-shadow: 0 4px 28px rgba(0,170,255,.45); }
+
 .btn.listening {
   border-color: var(--grn);
   background: linear-gradient(135deg, #002a1a, #003a22);
@@ -38,6 +42,23 @@
   border-color: var(--acc2);
   background: linear-gradient(135deg, #001a2e, #002a42);
 }
+
+/* Estado wake — pulso suave em âmbar para indicar "ouvindo palavra-chave" */
+.btn.wake {
+  border-color: var(--amb);
+  background: linear-gradient(135deg, #2a1a00, #3a2500);
+  animation: wakePulse 2.4s ease-in-out infinite;
+}
+
+@keyframes wakePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,171,0,.4); }
+  50%       { box-shadow: 0 0 0 10px rgba(255,171,0,0); }
+}
+
+.wakeIcon { font-size: 1.3rem; }
+.icon     { font-size: 1.4rem; }
+
+/* ── Label ───────────────────────────────────────────── */
 .label {
   font-family: var(--disp);
   font-size: .44rem;
@@ -48,11 +69,37 @@
   padding: 3px 10px;
   border: 1px solid var(--brd);
 }
-.label.listening { color: var(--grn); }
+.label.listening { color: var(--grn); border-color: rgba(0,230,118,.3); }
 .label.thinking  { color: var(--acc); }
 .label.speaking  { color: var(--acc2); }
+.label.wake      { color: var(--amb); border-color: rgba(255,171,0,.3); }
 
-/* Wave animation */
+/* ── Wake toggle — pequeno botão acima do principal ─── */
+.wakeToggle {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(6,10,14,.85);
+  border: 1px solid var(--brd);
+  color: var(--txtd);
+  font-size: .8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s;
+  order: -1; /* aparece acima do botão principal */
+}
+.wakeToggle:hover {
+  border-color: var(--amb);
+  background: rgba(255,171,0,.08);
+}
+.wakeToggle.wakeOn {
+  border-color: var(--amb);
+  background: rgba(255,171,0,.12);
+  box-shadow: 0 0 8px rgba(255,171,0,.3);
+}
+
+/* ── Wave animation ──────────────────────────────────── */
 .wave { display: flex; align-items: center; gap: 2px; height: 18px; }
 .bar  {
   width: 3px;
@@ -62,10 +109,10 @@
   animation: voiceWave .6s ease infinite;
 }
 
-/* Response bubble — sobe junto com o botão */
+/* ── Response bubble ─────────────────────────────────── */
 .bubble {
   position: fixed;
-  bottom: 168px;       /* 88px wrap + 58px btn + 6px gap + ~16px label + margem */
+  bottom: 168px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 500;
@@ -156,12 +203,8 @@
 }
 .briefBtn:hover { background: rgba(0,170,255,.14); }
 
-/* ── MOBILE ─────────────────────────────────────────── */
+/* ── Mobile ──────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .wrap {
-    bottom: 72px;      /* logo acima do bottom nav (60px) */
-  }
-  .bubble {
-    bottom: 152px;
-  }
+  .wrap   { bottom: 72px; }
+  .bubble { bottom: 152px; }
 }
