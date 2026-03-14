@@ -1,6 +1,7 @@
 // src/components/ui/Disclaimer.tsx
 'use client';
 import { useEffect, useState } from 'react';
+import { OFFICIAL_SOURCES } from '@/lib/constants';
 import styles from './Disclaimer.module.css';
 
 export function Disclaimer() {
@@ -8,7 +9,6 @@ export function Disclaimer() {
   const [fading, setFading]   = useState(false);
 
   useEffect(() => {
-    // começa a fade após 4s, some completamente em 5s
     const fadeTimer = setTimeout(() => setFading(true), 4000);
     const hideTimer = setTimeout(() => setVisible(false), 5200);
     return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer); };
@@ -28,6 +28,20 @@ export function Disclaimer() {
         Não substitui fontes oficiais.{' '}
         O piloto em comando é a autoridade final.
       </p>
+      <nav className={styles.links} aria-label="Fontes oficiais">
+        {OFFICIAL_SOURCES.map(s => (
+          <a
+            key={s.label}
+            href={s.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.link}
+            title={s.description}
+          >
+            {s.label}
+          </a>
+        ))}
+      </nav>
     </div>
   );
 }
