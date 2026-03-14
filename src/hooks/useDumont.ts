@@ -175,13 +175,7 @@ export function useDumont(): UseDumontReturn {
       wakeActive.current = false;
       // Reiniciar automaticamente se wake ainda está habilitado
       // e o app não está em outro estado de voz
-      if (
-        wakeEnabled &&
-        stateRef.current === 'idle' &&
-        stateRef.current !== 'listening' &&
-        stateRef.current !== 'thinking' &&
-        stateRef.current !== 'speaking'
-      ) {
+      if (wakeEnabled && stateRef.current === 'idle') {
         // Pequeno delay para evitar loop imediato em caso de erro
         setTimeout(() => startWakeListener(), 300);
       }
