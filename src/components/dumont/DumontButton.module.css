@@ -1,16 +1,15 @@
 /* src/components/dumont/DumontButton.module.css */
 .wrap {
   position: fixed;
-  bottom: 28px;
+  bottom: 88px;        /* subiu: antes 28px desktop, agora acima do bottom nav */
   left: 50%;
   transform: translateX(-50%);
-  z-index: 400;
+  z-index: 500;        /* acima do bottom nav (400) */
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
 }
-
 .btn {
   width: 58px; height: 58px;
   border-radius: 50%;
@@ -26,7 +25,6 @@
   box-shadow: 0 4px 20px rgba(0,170,255,.25);
 }
 .btn:hover { box-shadow: 0 4px 28px rgba(0,170,255,.45); }
-
 .btn.listening {
   border-color: var(--grn);
   background: linear-gradient(135deg, #002a1a, #003a22);
@@ -40,7 +38,6 @@
   border-color: var(--acc2);
   background: linear-gradient(135deg, #001a2e, #002a42);
 }
-
 .label {
   font-family: var(--disp);
   font-size: .44rem;
@@ -65,13 +62,13 @@
   animation: voiceWave .6s ease infinite;
 }
 
-/* Response bubble */
+/* Response bubble — sobe junto com o botão */
 .bubble {
   position: fixed;
-  bottom: 108px;
+  bottom: 168px;       /* 88px wrap + 58px btn + 6px gap + ~16px label + margem */
   left: 50%;
   transform: translateX(-50%);
-  z-index: 400;
+  z-index: 500;
   width: min(520px, 90vw);
   background: rgba(8,16,24,.96);
   border: 1px solid var(--brdg);
@@ -85,7 +82,6 @@
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--acc2), transparent);
 }
-
 .bubbleHead {
   padding: 7px 14px 6px;
   border-bottom: 1px solid var(--brd);
@@ -111,7 +107,6 @@
   justify-content: center;
 }
 .closeBtn:hover { border-color: var(--txtd); }
-
 .heard {
   padding: 8px 14px 6px;
   font-family: var(--mono);
@@ -121,7 +116,6 @@
   line-height: 1.5;
 }
 .heard span { color: var(--txt); }
-
 .reply {
   padding: 10px 14px 12px;
   font-family: var(--ui);
@@ -130,7 +124,6 @@
   color: var(--txtb);
   line-height: 1.7;
 }
-
 .footer {
   padding: 5px 14px 8px;
   display: flex;
@@ -162,3 +155,13 @@
   clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%);
 }
 .briefBtn:hover { background: rgba(0,170,255,.14); }
+
+/* ── MOBILE ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .wrap {
+    bottom: 72px;      /* logo acima do bottom nav (60px) */
+  }
+  .bubble {
+    bottom: 152px;
+  }
+}
