@@ -5,29 +5,29 @@ import { OFFICIAL_SOURCES } from '@/lib/constants';
 import styles from './Disclaimer.module.css';
 
 export function Disclaimer() {
-  const [visible, setVisible] = useState(true);
-  const [fading, setFading]   = useState(false);
+  const [textVisible, setTextVisible] = useState(true);
+  const [textFading,  setTextFading]  = useState(false);
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => setFading(true), 4000);
-    const hideTimer = setTimeout(() => setVisible(false), 5200);
+    const fadeTimer = setTimeout(() => setTextFading(true), 4000);
+    const hideTimer = setTimeout(() => setTextVisible(false), 5200);
     return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer); };
   }, []);
 
-  if (!visible) return null;
-
   return (
-    <div
-      className={[styles.banner, fading ? styles.fadeOut : ''].join(' ')}
-      role="alert"
-      aria-label="Aviso de fontes oficiais"
-    >
-      <span className={styles.icon}>⚠</span>
-      <p className={styles.text}>
-        <strong>Informação complementar.</strong>{' '}
-        Não substitui fontes oficiais.{' '}
-        O piloto em comando é a autoridade final.
-      </p>
+    <div className={styles.banner} role="complementary" aria-label="Fontes oficiais">
+
+      {/* Texto de aviso — some após 5s */}
+      {textVisible && (
+        <p className={[styles.text, textFading ? styles.textFade : ''].join(' ')}>
+          <span className={styles.icon}>⚠</span>
+          <strong>Informação complementar.</strong>{' '}
+          Não substitui fontes oficiais.{' '}
+          O piloto em comando é a autoridade final.
+        </p>
+      )}
+
+      {/* Links — sempre visíveis */}
       <nav className={styles.links} aria-label="Fontes oficiais">
         {OFFICIAL_SOURCES.map(s => (
           <a
