@@ -9,7 +9,6 @@ import { ActivityFeed } from '@/components/feed/ActivityFeed';
 import { DumontButton } from '@/components/dumont/DumontButton';
 import styles from './page.module.css';
 
-// ── UTC Clock ────────────────────────────────────────────
 function UtcClock() {
   const [time, setTime] = useState('');
   useEffect(() => {
@@ -21,7 +20,6 @@ function UtcClock() {
   return <span className={styles.clock}>{time}</span>;
 }
 
-// ── Tabs para bottom nav mobile ──────────────────────────
 type MobileTab = 'brief' | 'feed' | 'crew';
 
 export default function HomePage() {
@@ -37,7 +35,7 @@ export default function HomePage() {
     if (d.length < 2) return;
     setActiveDep(d);
     setActiveArr(arr.trim().toUpperCase());
-    setMobileTab('brief'); // volta para a aba de briefing no mobile
+    setMobileTab('brief');
   }, [dep, arr]);
 
   const handleDumontIcao = useCallback((d: string, a?: string) => {
@@ -51,7 +49,7 @@ export default function HomePage() {
   return (
     <div className={styles.shell}>
 
-      {/* ── SIDEBAR (desktop) / Feed overlay (mobile) ── */}
+      {/* SIDEBAR */}
       <aside className={[
         styles.sidebar,
         feedOpen ? styles.open : '',
@@ -60,7 +58,7 @@ export default function HomePage() {
         <ActivityFeed />
       </aside>
 
-      {/* ── MAIN ──────────────────────────────────────── */}
+      {/* MAIN */}
       <main className={[
         styles.main,
         mobileTab !== 'brief' ? styles.mobileHidden : '',
@@ -68,14 +66,14 @@ export default function HomePage() {
 
         <Disclaimer />
 
-        {/* HEADER */}
         <header className={styles.header}>
+          {/* Logo + clock empilhados */}
           <div className={styles.headerLeft}>
             <span className={styles.logo}>DUMONT</span>
             <UtcClock />
           </div>
 
-          {/* Search — DEP → ARR em linha no desktop, empilhado no mobile */}
+          {/* DEP → ARR + BRIEF — centralizado */}
           <div className={styles.search}>
             <div className={styles.inputGroup}>
               <div className={styles.inputWrap}>
@@ -117,7 +115,6 @@ export default function HomePage() {
           >⚡</button>
         </header>
 
-        {/* CONTENT */}
         <div className={styles.content}>
           {!activeDep && (
             <div className={styles.welcome}>
@@ -126,7 +123,6 @@ export default function HomePage() {
               <p className={styles.welcomeSub}>ou diga <strong>"Dumont, condições de SBSP"</strong></p>
             </div>
           )}
-
           {activeDep && (
             <div className={styles.panels}>
               <MetarPanel icao={activeDep} />
@@ -147,7 +143,7 @@ export default function HomePage() {
         </div>
       </main>
 
-      {/* ── CREW TAB (placeholder) ─────────────────────── */}
+      {/* CREW placeholder */}
       {mobileTab === 'crew' && (
         <div className={styles.crewPlaceholder}>
           <span className={styles.welcomeIcon}>👤</span>
@@ -156,12 +152,11 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── BOTTOM NAV (mobile only) ──────────────────── */}
+      {/* BOTTOM NAV — mobile only */}
       <nav className={styles.bottomNav} aria-label="Navegação principal">
         <button
           className={[styles.navBtn, mobileTab === 'brief' ? styles.navActive : ''].join(' ')}
           onClick={() => setMobileTab('brief')}
-          aria-label="Briefing"
         >
           <span className={styles.navIcon}>✈</span>
           <span className={styles.navLabel}>BRIEF</span>
@@ -169,7 +164,6 @@ export default function HomePage() {
         <button
           className={[styles.navBtn, mobileTab === 'feed' ? styles.navActive : ''].join(' ')}
           onClick={() => setMobileTab('feed')}
-          aria-label="Atividade"
         >
           <span className={styles.navIcon}>⚡</span>
           <span className={styles.navLabel}>FEED</span>
@@ -177,7 +171,6 @@ export default function HomePage() {
         <button
           className={[styles.navBtn, mobileTab === 'crew' ? styles.navActive : ''].join(' ')}
           onClick={() => setMobileTab('crew')}
-          aria-label="Tripulação"
         >
           <span className={styles.navIcon}>👤</span>
           <span className={styles.navLabel}>CREW</span>
