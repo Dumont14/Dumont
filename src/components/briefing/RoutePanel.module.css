@@ -1,0 +1,87 @@
+/* src/components/briefing/RoutePanel.module.css */
+
+.msg  {
+  font-family: var(--mono); font-size: 0.85rem;
+  display: flex; align-items: center; gap: 8px;
+  color: var(--txtd); padding: 4px 0;
+}
+.warn {
+  font-family: var(--mono); font-size: 0.85rem;
+  color: var(--amb); padding: 4px 0;
+}
+
+/* Grid 2x2 */
+.routeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 14px;
+  background: rgba(0,0,0,.25);
+  border: 1px solid var(--brd);
+}
+
+.cellLabel {
+  font-family: var(--disp);
+  font-size: 0.44rem;
+  letter-spacing: 2px;
+  color: var(--txtd);
+}
+
+.cellValue {
+  font-family: var(--disp);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--acc2);
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.unit {
+  font-size: 0.65rem;
+  color: var(--txtd);
+  letter-spacing: 1px;
+  margin-left: 4px;
+}
+
+/* Rumo magnético em destaque */
+.cell:first-child .cellValue {
+  color: var(--acc2);
+  font-size: 1.6rem;
+}
+.cell:first-child {
+  border-color: var(--brdg);
+  background: rgba(0,170,255,.04);
+}
+
+/* Distância em destaque */
+.cell:nth-child(3) .cellValue {
+  color: var(--grn);
+}
+.cell:nth-child(3) {
+  border-color: rgba(0,230,118,.2);
+  background: rgba(0,230,118,.03);
+}
+
+.disclaimer {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--txtd);
+  line-height: 1.5;
+  padding: 4px 0;
+  opacity: .7;
+}
+
+/* Mobile */
+@media (max-width: 900px) {
+  .cellValue       { font-size: 1.2rem; }
+  .cell:first-child .cellValue { font-size: 1.4rem; }
+  .cellLabel       { font-size: 0.52rem; }
+  .disclaimer      { font-size: var(--fs-xs-m); }
+}
