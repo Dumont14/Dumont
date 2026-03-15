@@ -28,18 +28,13 @@
   margin-bottom: 10px;
   font-family: var(--mono);
 }
-.atsOpen    { border-color: var(--grn);  background: rgba(0,230,118,.06); }
-.atsH24     { border-color: var(--grn);  background: rgba(0,230,118,.04); }
-.atsWarn    { border-color: var(--amb);  background: rgba(255,171,0,.08); }
-.atsClosed  { border-color: var(--red);  background: rgba(255,61,61,.08); }
+.atsOpen   { border-color: var(--grn); background: rgba(0,230,118,.06); }
+.atsH24    { border-color: var(--grn); background: rgba(0,230,118,.04); }
+.atsWarn   { border-color: var(--amb); background: rgba(255,171,0,.08); }
+.atsClosed { border-color: var(--red); background: rgba(255,61,61,.08); }
 
 .atsIcon { font-size: .85rem; flex-shrink: 0; margin-top: 1px; }
-
-.atsInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
+.atsInfo { display: flex; flex-direction: column; gap: 2px; }
 .atsLabel {
   font-family: var(--disp);
   font-size: 0.55rem;
@@ -51,8 +46,69 @@
   color: var(--txtb);
   line-height: 1.4;
 }
-.atsClosed  .atsStatus { color: var(--red); }
-.atsWarn    .atsStatus { color: var(--amb); }
+.atsClosed .atsStatus { color: var(--red); }
+.atsWarn   .atsStatus { color: var(--amb); }
+
+/* ── Schedule operacional (campo <d> do NOTAM) ───────── */
+.schedBox {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 12px;
+  border-radius: 2px;
+  border-left: 3px solid;
+  margin: 8px 0 4px;
+  font-family: var(--mono);
+}
+.schedOpen   { border-color: var(--grn); background: rgba(0,230,118,.06); }
+.schedClosed { border-color: var(--red); background: rgba(255,61,61,.08); }
+
+.schedTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.schedIcon { font-size: .85rem; flex-shrink: 0; }
+.schedStatus {
+  font-family: var(--disp);
+  font-size: 0.52rem;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+.schedClosed .schedStatus { color: var(--red); }
+.schedOpen   .schedStatus { color: var(--grn); }
+.schedNext {
+  font-size: 0.68rem;
+  color: var(--amb);
+  margin-left: auto;
+}
+.schedDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.65rem;
+  color: var(--txtd);
+  padding-left: 22px;
+}
+.schedPeriod strong { color: var(--txtb); }
+.schedOpenLabel { font-size: 0.62rem; color: var(--grn); opacity: .8; }
+
+/* Número do NOTAM */
+.notamHeader {
+  padding: 4px 0 6px;
+  display: flex;
+  align-items: center;
+}
+.notamNum {
+  font-family: var(--disp);
+  font-size: 0.55rem;
+  letter-spacing: 2px;
+  color: var(--acc);
+  padding: 2px 8px;
+  border: 1px solid rgba(0,170,255,.3);
+  background: rgba(0,170,255,.06);
+}
 
 /* ── AI Summary ──────────────────────────────────────── */
 .aiBox {
@@ -84,14 +140,13 @@
   flex-direction: column;
   gap: 4px;
 }
-
 .item {
   border: 1px solid var(--brd);
   background: rgba(0,0,0,.2);
 }
-.item.crit { border-color: rgba(255,61,61,.35);  }
-.item.warn { border-color: rgba(255,171,0,.3);   }
-.item.info { border-color: var(--brd);           }
+.item.crit { border-color: rgba(255,61,61,.35); }
+.item.warn { border-color: rgba(255,171,0,.3);  }
+.item.info { border-color: var(--brd);          }
 
 .itemHead {
   width: 100%;
@@ -113,7 +168,7 @@
   padding: 2px 6px;
   flex-shrink: 0;
 }
-.sev_crit { background: rgba(255,61,61,.15);  color: var(--red); border: 1px solid rgba(255,61,61,.4); }
+.sev_crit { background: rgba(255,61,61,.15);  color: var(--red); border: 1px solid rgba(255,61,61,.4);  }
 .sev_warn { background: rgba(255,171,0,.12);  color: var(--amb); border: 1px solid rgba(255,171,0,.35); }
 .sev_info { background: rgba(0,170,255,.08);  color: var(--acc); border: 1px solid rgba(0,170,255,.25); }
 
@@ -125,7 +180,6 @@
   flex-shrink: 0;
   min-width: 52px;
 }
-
 .preview {
   font-family: var(--mono);
   font-size: 0.78rem;
@@ -140,11 +194,7 @@
 .item.crit .preview { color: #ffaaaa; }
 .item.warn .preview { color: #ffe0a0; }
 
-.arrow {
-  font-size: .5rem;
-  color: var(--txtd);
-  flex-shrink: 0;
-}
+.arrow { font-size: .5rem; color: var(--txtd); flex-shrink: 0; }
 
 /* ── Expandido ───────────────────────────────────────── */
 .full {
@@ -170,13 +220,18 @@
   border-top: 1px solid var(--brd);
 }
 
+/* ── Mobile ──────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .atsStatus  { font-size: var(--fs-md-m); }
-  .preview    { font-size: var(--fs-md-m); white-space: normal; }
-  .pre        { font-size: var(--fs-sm-m); line-height: 1.75; }
-  .cat        { font-size: var(--fs-sm-m); }
-  .sevBadge   { font-size: 0.60rem; padding: 3px 8px; }
+  .atsStatus      { font-size: var(--fs-md-m); }
+  .preview        { font-size: var(--fs-md-m); white-space: normal; }
+  .pre            { font-size: var(--fs-sm-m); line-height: 1.75; }
+  .cat            { font-size: var(--fs-sm-m); }
+  .sevBadge       { font-size: 0.60rem; padding: 3px 8px; }
   .msg,
   .clear,
-  .error      { font-size: var(--fs-md-m); }
+  .error          { font-size: var(--fs-md-m); }
+  .schedStatus    { font-size: 0.60rem; }
+  .schedNext      { font-size: var(--fs-sm-m); }
+  .schedPeriod    { font-size: var(--fs-sm-m); }
+  .validity       { font-size: var(--fs-sm-m); flex-direction: column; gap: 4px; }
 }
