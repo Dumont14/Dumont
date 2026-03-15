@@ -10,6 +10,7 @@ import { AirportPanel }  from '@/components/briefing/AirportPanel';
 import { RoutePanel }    from '@/components/briefing/RoutePanel';
 import { ActivityFeed }  from '@/components/feed/ActivityFeed';
 import { DumontButton }  from '@/components/dumont/DumontButton';
+import { useBriefingMode } from '@/hooks/useBriefingMode';
 import styles from './page.module.css';
 
 function UtcClock() {
@@ -32,6 +33,8 @@ export default function HomePage() {
   const [activeArr, setActiveArr] = useState('');
   const [feedOpen, setFeedOpen]   = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('brief');
+
+  const { mode, toggle } = useBriefingMode();
 
   const runBriefing = useCallback(() => {
     const d = dep.trim().toUpperCase();
@@ -108,11 +111,24 @@ export default function HomePage() {
             <button className={styles.briefBtn} onClick={runBriefing}>BRIEF</button>
           </div>
 
-          <button
-            className={styles.feedToggle}
-            onClick={() => setFeedOpen(o => !o)}
-            aria-label="Toggle feed"
-          >⚡</button>
+          <div className={styles.headerRight}>
+            {/* Toggle modo piloto/completo */}
+            <button
+              className={[styles.modeToggle, mode === 'full' ? styles.modeToggleFull : ''].join(' ')}
+              onClick={toggle}
+              title={mode === 'pilot' ? 'Modo Piloto — clique para ver tudo' : 'Modo Completo — clique para resumir'}
+              aria-label={`Modo ${mode === 'pilot' ? 'Piloto' : 'Completo'}`}
+            >
+              <span className={styles.modeIcon}>{mode === 'pilot' ? '✈' : '⚙'}</span>
+              <span className={styles.modeLabel}>{mode === 'pilot' ? 'PILOTO' : 'FULL'}</span>
+            </button>
+
+            <button
+              className={styles.feedToggle}
+              onClick={() => setFeedOpen(o => !o)}
+              aria-label="Toggle feed"
+            >⚡</button>
+          </div>
         </header>
 
         <div className={styles.content}>
@@ -127,10 +143,10 @@ export default function HomePage() {
           {activeDep && (
             <div className={styles.panels}>
               {/* ── DEP ── */}
-              <MetarPanel   icao={activeDep} />
-              <TafPanel     icao={activeDep} />
-              <NotamPanel   icao={activeDep} />
-              <AirportPanel icao={activeDep} />
+              <MetarPanel   icao={activeDep} mode={mode} />
+              <TafPanel     icao={activeDep} mode={mode} />
+              <NotamPanel   icao={activeDep} mode={mode} />
+              <AirportPanel icao={activeDep} mode={mode} />
 
               {/* ── ROTA ── */}
               {activeArr && (
@@ -141,10 +157,10 @@ export default function HomePage() {
                     <span>{activeArr}</span>
                   </div>
                   <RoutePanel dep={activeDep} arr={activeArr} />
-                  <MetarPanel   icao={activeArr} />
-                  <TafPanel     icao={activeArr} />
-                  <NotamPanel   icao={activeArr} />
-                  <AirportPanel icao={activeArr} />
+                  <MetarPanel   icao={activeArr} mode={mode} />
+                  <TafPanel     icao={activeArr} mode={mode} />
+                  <NotamPanel   icao={activeArr} mode={mode} />
+                  <AirportPanel icao={activeArr} mode={mode} />
                 </>
               )}
             </div>
