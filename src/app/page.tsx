@@ -2,11 +2,13 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Disclaimer }   from '@/components/ui/Disclaimer';
-import { MetarPanel }   from '@/components/briefing/MetarPanel';
-import { NotamPanel }   from '@/components/briefing/NotamPanel';
-import { ActivityFeed } from '@/components/feed/ActivityFeed';
-import { DumontButton } from '@/components/dumont/DumontButton';
+import { Disclaimer }    from '@/components/ui/Disclaimer';
+import { MetarPanel }    from '@/components/briefing/MetarPanel';
+import { TafPanel }      from '@/components/briefing/TafPanel';
+import { NotamPanel }    from '@/components/briefing/NotamPanel';
+import { AirportPanel }  from '@/components/briefing/AirportPanel';
+import { ActivityFeed }  from '@/components/feed/ActivityFeed';
+import { DumontButton }  from '@/components/dumont/DumontButton';
 import styles from './page.module.css';
 
 function UtcClock() {
@@ -67,13 +69,11 @@ export default function HomePage() {
         <Disclaimer />
 
         <header className={styles.header}>
-          {/* Logo + clock empilhados */}
           <div className={styles.headerLeft}>
             <span className={styles.logo}>DUMONT</span>
             <UtcClock />
           </div>
 
-          {/* DEP → ARR + BRIEF — centralizado */}
           <div className={styles.search}>
             <div className={styles.inputGroup}>
               <div className={styles.inputWrap}>
@@ -107,7 +107,6 @@ export default function HomePage() {
             <button className={styles.briefBtn} onClick={runBriefing}>BRIEF</button>
           </div>
 
-          {/* Feed toggle — só desktop */}
           <button
             className={styles.feedToggle}
             onClick={() => setFeedOpen(o => !o)}
@@ -123,10 +122,16 @@ export default function HomePage() {
               <p className={styles.welcomeSub}>ou diga <strong>"Dumont, condições de SBSP"</strong></p>
             </div>
           )}
+
           {activeDep && (
             <div className={styles.panels}>
-              <MetarPanel icao={activeDep} />
-              <NotamPanel icao={activeDep} />
+              {/* ── DEP ── */}
+              <MetarPanel   icao={activeDep} />
+              <TafPanel     icao={activeDep} />
+              <NotamPanel   icao={activeDep} />
+              <AirportPanel icao={activeDep} />
+
+              {/* ── ROTA ── */}
               {activeArr && (
                 <>
                   <div className={styles.divider}>
@@ -134,8 +139,10 @@ export default function HomePage() {
                     <span className={styles.divArrow}>──────→</span>
                     <span>{activeArr}</span>
                   </div>
-                  <MetarPanel icao={activeArr} />
-                  <NotamPanel icao={activeArr} />
+                  <MetarPanel   icao={activeArr} />
+                  <TafPanel     icao={activeArr} />
+                  <NotamPanel   icao={activeArr} />
+                  <AirportPanel icao={activeArr} />
                 </>
               )}
             </div>
@@ -152,7 +159,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* BOTTOM NAV — mobile only */}
+      {/* BOTTOM NAV */}
       <nav className={styles.bottomNav} aria-label="Navegação principal">
         <button
           className={[styles.navBtn, mobileTab === 'brief' ? styles.navActive : ''].join(' ')}
