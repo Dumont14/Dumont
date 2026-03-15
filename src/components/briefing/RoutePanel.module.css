@@ -10,12 +10,11 @@
   color: var(--amb); padding: 4px 0;
 }
 
-/* Grid 2x2 */
 .routeGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .cell {
@@ -27,6 +26,16 @@
   border: 1px solid var(--brd);
 }
 
+.cellHighlight {
+  border-color: var(--brdg);
+  background: rgba(0,170,255,.04);
+}
+
+.cellDist {
+  border-color: rgba(0,230,118,.2);
+  background: rgba(0,230,118,.03);
+}
+
 .cellLabel {
   font-family: var(--disp);
   font-size: 0.44rem;
@@ -36,37 +45,62 @@
 
 .cellValue {
   font-family: var(--disp);
-  font-size: 1.4rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: var(--acc2);
   letter-spacing: 2px;
   line-height: 1;
 }
 
+.cellDist .cellValue {
+  color: var(--grn);
+}
+
+.cellValueSec {
+  font-family: var(--disp);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--txt);
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
 .unit {
-  font-size: 0.65rem;
+  font-size: 0.60rem;
   color: var(--txtd);
   letter-spacing: 1px;
   margin-left: 4px;
 }
 
-/* Rumo magnético em destaque */
-.cell:first-child .cellValue {
-  color: var(--acc2);
-  font-size: 1.6rem;
-}
-.cell:first-child {
-  border-color: var(--brdg);
-  background: rgba(0,170,255,.04);
+/* Declinação */
+.declRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  margin-bottom: 4px;
+  font-family: var(--mono);
+  border-top: 1px solid var(--brd);
 }
 
-/* Distância em destaque */
-.cell:nth-child(3) .cellValue {
-  color: var(--grn);
+.declLabel {
+  font-family: var(--disp);
+  font-size: 0.44rem;
+  letter-spacing: 1.5px;
+  color: var(--txtd);
 }
-.cell:nth-child(3) {
-  border-color: rgba(0,230,118,.2);
-  background: rgba(0,230,118,.03);
+
+.declVal {
+  font-size: 0.80rem;
+  color: var(--txtb);
+  font-weight: 600;
+}
+
+.declSrc {
+  font-size: 0.58rem;
+  color: var(--txtd);
+  margin-left: auto;
+  opacity: .7;
 }
 
 .disclaimer {
@@ -74,14 +108,14 @@
   font-size: 0.58rem;
   color: var(--txtd);
   line-height: 1.5;
-  padding: 4px 0;
   opacity: .7;
 }
 
 /* Mobile */
 @media (max-width: 900px) {
-  .cellValue       { font-size: 1.2rem; }
-  .cell:first-child .cellValue { font-size: 1.4rem; }
-  .cellLabel       { font-size: 0.52rem; }
-  .disclaimer      { font-size: var(--fs-xs-m); }
+  .cellValue    { font-size: 1.3rem; }
+  .cellValueSec { font-size: 1.0rem; }
+  .cellLabel    { font-size: 0.52rem; }
+  .disclaimer   { font-size: var(--fs-xs-m); }
+  .declVal      { font-size: var(--fs-md-m); }
 }
