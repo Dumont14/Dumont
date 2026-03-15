@@ -26,65 +26,8 @@ async function fetchNotamsAISWEB(icao: string): Promise<unknown> {
   if (!res.ok) throw new Error(`AISWEB proxy ${res.status}`);
   
   const data = await res.json();
-  
-  // Se vier erro do proxy, lançar
   if (data.error) throw new Error(data.error);
-  
-  // Retornar estrutura com notamList + raw para o parser
   return data;
-}
-
-/** Parseia resposta AISWEB que pode ser XML ou JSON */
-function parseAISWEBResponse(raw: string): unknown {
-  const trimmed = raw.trim();
-
-  // Se for JSON válido, retornar direto
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try { return JSON.parse(trimmed); } catch { /* continua para XML */ }
-  }
-
-  // Parsear XML manualmente extraindo campos relevantes
-  const notams: Record<string, string>[] = [];
-
-  // Extrair blocos <item> ou <notam>
-  const blockRe = /<(?:item|notam|NOTAM)[^>]*>([\s\S]*?)<\/(?:item|notam|NOTAM)>/gi;
-  let block: RegExpExecArray | null;
-
-  while ((block = blockRe.exec(trimmed)) !== null) {
-    const content = block[1];
-    const get = (tag: string) => {
-      const m = content.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
-      return m ? m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim() : '';
-    };
-
-    const item: Record<string, string> = {
-      id:   get('id') || get('numero') || get('notamId') || '',
-      text: get('e') || get('itemE') || get('text') || get('mens') || get('texto') || '',
-      from: get('b') || get('startValidity') || get('inicio') || '',
-      to:   get('c') || get('endValidity')   || get('fim')    || '',
-      q:    get('q') || get('qLine')         || '',
-    };
-
-    // Se text vazio, tentar extrair do bloco inteiro removendo tags
-    if (!item.text) {
-      item.text = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    }
-
-    if (item.text) notams.push(item);
-  }
-
-  // Se não encontrou blocos, tentar extrair texto livre do XML
-  if (notams.length === 0 && trimmed.includes('<')) {
-    const textContent = trimmed
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (textContent.length > 10) {
-      return { rawText: textContent };
-    }
-  }
-
-  return { notamList: notams };
 }
 
 async function fetchNotamsFAA(icao: string): Promise<unknown> {
@@ -126,20 +69,16 @@ async function fetchNotamsFAA(icao: string): Promise<unknown> {
 
 // ── PARSE ────────────────────────────────────────────────
 
-// Padrões críticos — PT e EN
-const CRIT_PATTERNS: RegExp[] = [
-  // AD fechado
+const CRIT_PATTERNS = [
   /AD\s{0,6}CLSD/i,
   /AEROD[RÓO]DROMO\s{0,10}FECHA/i,
   /AIRPORT\s{0,10}CLOS/i,
   /CLSD\s{0,10}DUE/i,
   /FECHAD[OA]\s{0,10}(PARA|POR|DUE)/i,
-  // Pista fechada
   /RWY.{0,15}CLSD/i,
   /CLSD.{0,15}RWY/i,
   /RUNWAY.{0,10}CLOS/i,
   /PISTA.{0,10}FECHA/i,
-  // Navegação inoperante
   /ILS.{0,8}(U\/S|INOP|UNSERV|INDISPON)/i,
   /LOC.{0,8}(U\/S|INOP|UNSERV)/i,
   /GS.{0,8}(U\/S|INOP|UNSERV)/i,
@@ -147,16 +86,13 @@ const CRIT_PATTERNS: RegExp[] = [
   /VOR.{0,8}(U\/S|INOP|UNSERV)/i,
   /NDB.{0,8}(U\/S|INOP|UNSERV)/i,
   /DME.{0,8}(U\/S|INOP|UNSERV)/i,
-  // Combustível
   /FUEL.{0,15}(UNAVAIL|NOT AVBL|INDISPON)/i,
-  /ABASTEC.{0,15}(INDISPON|SUSPEN|FECHA)/i,
-  // Perigo / emergência
+  /ABASTEC.{0,15}(INDISPON|SUSPEN|FECHA|INDISP)/i,
   /HAZARD/i,
   /WIP.{0,20}RWY/i,
 ];
 
-// Padrões de aviso
-const WARN_PATTERNS: RegExp[] = [
+const WARN_PATTERNS = [
   /TWY.{0,10}CLSD/i,
   /TAXIWAY.{0,10}CLOS/i,
   /LGT.{0,8}(U\/S|INOP)/i,
@@ -164,8 +100,9 @@ const WARN_PATTERNS: RegExp[] = [
   /VASI.{0,8}(U\/S|INOP)/i,
   /TWR.{0,8}(CLSD|FECHA|INOP)/i,
   /ATC.{0,8}(CLSD|UNAVAIL)/i,
-  /SER\s+ATS/i,          // horário de serviço ATS
-  /AD\s+HR\s+SER/i,      // horário de serviço do AD
+  /SER\s+ATS/i,
+  /AD\s+HR\s+SER/i,
+  /HR\s+SER/i,
   /OBST/i,
   /CRANE/i,
   /GUINDASTE/i,
@@ -186,7 +123,7 @@ function getCategory(text: string): { l: string; c: string } {
   if (/TWY|TAXIWAY/i.test(text))         return { l: 'TWY',   c: 'na2' };
   if (/TWR|TOWER|ATC/i.test(text))       return { l: 'ATC',   c: 'nb2' };
   if (/FUEL|ABASTEC/i.test(text))        return { l: 'FUEL',  c: 'na2' };
-  if (/AD\s+HR\s+SER|SER\s+ATS/i.test(text)) return { l: 'ATS HR', c: 'nb2' };
+  if (/AD\s+HR\s+SER|SER\s+ATS|HR\s+SER/i.test(text)) return { l: 'ATS HR', c: 'nb2' };
   if (/OBST|CRANE|GUINDASTE/i.test(text)) return { l: 'OBST', c: 'nb2' };
   return { l: 'GEN', c: 'ng2' };
 }
@@ -194,21 +131,21 @@ function getCategory(text: string): { l: string; c: string } {
 // ── HORÁRIO ATS ──────────────────────────────────────────
 
 export interface AtsHours {
-  raw: string;        // string original ex: "DLY 0315-2045"
-  open: number;       // minutos UTC desde meia-noite
-  close: number;      // minutos UTC desde meia-noite
+  raw: string;
+  open: number;
+  close: number;
   isH24: boolean;
-  isOpen: boolean;    // aberto agora?
-  closingSoon: boolean; // fecha em menos de 60min?
-  opensIn?: number;   // minutos até abrir (se fechado)
+  isOpen: boolean;
+  closingSoon: boolean;
+  opensIn?: number;
 }
 
 function parseAtsHours(text: string): AtsHours | null {
-  // Padrões: "DLY 0315-2045", "H24", "MON-FRI 1030-1300", "DLY 1015-2145"
   if (/\bH24\b/i.test(text)) {
     return { raw: 'H24', open: 0, close: 1440, isH24: true, isOpen: true, closingSoon: false };
   }
 
+  // Capturar horários tipo 0800-1400 ou 1015 - 2145
   const m = text.match(/(\d{4})\s*[-–]\s*(\d{4})/);
   if (!m) return null;
 
@@ -218,9 +155,9 @@ function parseAtsHours(text: string): AtsHours | null {
   const now   = new Date();
   const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
 
-  const isOpen      = nowMin >= open && nowMin < close;
+  const isOpen = nowMin >= open && nowMin < close;
   const closingSoon = isOpen && (close - nowMin) <= 60;
-  const opensIn     = !isOpen ? (nowMin < open ? open - nowMin : 1440 - nowMin + open) : undefined;
+  const opensIn = !isOpen ? (nowMin < open ? open - nowMin : 1440 - nowMin + open) : undefined;
 
   return {
     raw: m[0],
@@ -231,11 +168,17 @@ function parseAtsHours(text: string): AtsHours | null {
 }
 
 export function extractAtsHours(notams: ParsedNotam[]): AtsHours | null {
+  // Tentar primeiro NOTAMs específicos de horário de serviço
   const atsNotam = notams.find(n =>
     /AD\s+HR\s+SER|SER\s+ATS|HR\s+SER/i.test(n.text)
   );
-  if (!atsNotam) return null;
-  return parseAtsHours(atsNotam.text);
+  if (atsNotam) return parseAtsHours(atsNotam.text);
+
+  // Fallback: buscar qualquer horário de validade em NOTAMs críticos (ex: AD CLSD)
+  const critNotam = notams.find(n => n.sev === 'crit' && /(\d{4})\s*[-–]\s*(\d{4})/.test(n.text));
+  if (critNotam) return parseAtsHours(critNotam.text);
+
+  return null;
 }
 
 // ── PARSE PRINCIPAL ──────────────────────────────────────
@@ -243,16 +186,14 @@ export function extractAtsHours(notams: ParsedNotam[]): AtsHours | null {
 export function parseNotams(raw: unknown, maxItems = 20): ParsedNotam[] {
   if (!raw) return [];
 
-  let items: unknown[] = [];
-  const r = raw as Record<string, unknown>;
+  let items: any[] = [];
+  const r = raw as any;
 
-  // Normalizar estrutura de entrada
   if (Array.isArray(r.items))          items = r.items;
   else if (Array.isArray(r.notamList)) items = r.notamList;
   else if (Array.isArray(r.notam))     items = r.notam;
   else if (r.notam)                    items = [r.notam];
-  else if (Array.isArray(raw))         items = raw as unknown[];
-  // rawText = fallback de XML mal parseado
+  else if (Array.isArray(raw))         items = raw;
   else if (r.rawText) {
     return [{
       id: '?', text: String(r.rawText),
@@ -264,10 +205,9 @@ export function parseNotams(raw: unknown, maxItems = 20): ParsedNotam[] {
 
   return items
     .map((n): ParsedNotam | null => {
-      const p  = n as Record<string, unknown>;
-      const cr = (p.coreNOTAMData as Record<string, unknown>)?.notam as Record<string, unknown> | undefined;
+      const p  = n;
+      const cr = p.coreNOTAMData?.notam;
 
-      // Tentar extrair texto de todos os campos possíveis — PT e EN
       const text = String(
         cr?.text         ||
         cr?.originalText ||
@@ -275,8 +215,8 @@ export function parseNotams(raw: unknown, maxItems = 20): ParsedNotam[] {
         p.itemE          ||
         p.e              ||
         p.body           ||
-        p.mens           ||  // AISWEB XML parseado
-        p.texto          ||  // AISWEB PT
+        p.mens           ||
+        p.texto          ||
         p.message        ||
         ''
       ).trim();
@@ -293,9 +233,9 @@ export function parseNotams(raw: unknown, maxItems = 20): ParsedNotam[] {
       };
     })
     .filter((n): n is ParsedNotam => n !== null)
-    // Mostrar TUDO que é crit/warn + GEN info com conteúdo relevante
-    .filter(n => n.sev === 'crit' || n.sev === 'warn' || n.cat.l !== 'GEN')
-    .sort((a, b) => ({ crit: 0, warn: 1, info: 2 })[a.sev] - ({ crit: 0, warn: 1, info: 2 })[b.sev])
+    // Se for AD CLSD ou similar, sempre mostrar. Se for GEN sem severidade, filtrar.
+    .filter(n => n.sev !== 'info' || n.cat.l !== 'GEN')
+    .sort((a, b: any) => ({ crit: 0, warn: 1, info: 2 } as any)[a.sev] - ({ crit: 0, warn: 1, info: 2 } as any)[b.sev])
     .slice(0, maxItems);
 }
 

@@ -49,7 +49,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Capturar resposta bruta (pode ser XML, JSON ou texto)
     const rawText = await aisbRes.text();
     const trimmed = rawText.trim();
 
@@ -90,7 +89,7 @@ interface NotamItem {
 function parseAISWEB(raw: string): NotamItem[] {
   const notams: NotamItem[] = [];
 
-  // Tentar extrair blocos XML estruturados
+  // Tentar extrair blocos XML estruturados (<item> ou <notam>)
   const blockRe = /<(?:item|notam|NOTAM|Notam)[^>]*>([\s\S]*?)<\/(?:item|notam|NOTAM|Notam)>/gi;
   let block: RegExpExecArray | null;
   let found = false;
@@ -100,9 +99,9 @@ function parseAISWEB(raw: string): NotamItem[] {
     const content = block[1];
 
     const get = (tag: string): string => {
+      // Regex robusto para capturar tags mesmo se houver CDATA ou quebras de linha
       const m = content.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
       if (!m) return '';
-      // Remover CDATA e tags internas
       return m[1]
         .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
         .replace(/<[^>]+>/g, ' ')
@@ -110,12 +109,12 @@ function parseAISWEB(raw: string): NotamItem[] {
         .trim();
     };
 
+    // Priorizar campos de texto do AISWEB
     const text = get('e') || get('itemE') || get('text') ||
                  get('mens') || get('texto') || get('message') ||
-                 // fallback: texto completo do bloco sem tags
                  content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
-    if (!text) continue;
+    if (!text || text.length < 5) continue;
 
     notams.push({
       id:   get('id') || get('numero') || get('notamId') || String(notams.length + 1),
@@ -126,39 +125,40 @@ function parseAISWEB(raw: string): NotamItem[] {
     });
   }
 
-  // Se não encontrou blocos XML, tentar formato texto livre
-  // Formato AISWEB: "G0576/26 R G0565/26 12/03/2026 13:15\nQ) ...\nAD CLSD..."
-  if (!found && raw.length > 10) {
-    // Separar por padrão de número de NOTAM: LETRA+DIGITOS/ANO
+  // Fallback: se não encontrou blocos XML ou o XML está mal formatado, tentar texto bruto
+  if (!found || (notams.length === 0 && raw.length > 50)) {
+    // Tentar encontrar padrões de NOTAM (ex: B0283/26) no texto bruto
     const chunks = raw.split(/(?=\b[A-Z]\d{4}\/\d{2}\b)/);
     for (const chunk of chunks) {
       const trimChunk = chunk.trim();
-      if (trimChunk.length < 10) continue;
+      if (trimChunk.length < 20) continue;
 
-      // Extrair ID
       const idMatch = trimChunk.match(/^([A-Z]\d{4}\/\d{2})/);
       const id = idMatch ? idMatch[1] : String(notams.length + 1);
 
-      // Extrair validade das linhas de data
-      const dateMatch = trimChunk.match(
-        /(\d{2}\/\d{2}\/\d{2,4}\s+\d{2}:\d{2})\s+a\s+(\d{2}\/\d{2}\/\d{2,4}\s+\d{2}:\d{2})/i
-      );
-      const from = dateMatch ? dateMatch[1] : '';
-      const to   = dateMatch ? dateMatch[2] : '';
-
-      // Texto operacional: linhas após Q)
+      // Tentar capturar o texto operacional (geralmente após a linha Q) ou do início
       const qIdx = trimChunk.indexOf('Q)');
-      const text = qIdx >= 0
-        ? trimChunk.slice(qIdx).split('\n').slice(1).join(' ').trim()
-        : trimChunk;
+      let text = '';
+      let qLine = '';
+      
+      if (qIdx >= 0) {
+        const lines = trimChunk.slice(qIdx).split('\n');
+        qLine = lines[0].trim();
+        text = lines.slice(1).join(' ').trim();
+      } else {
+        text = trimChunk;
+      }
 
-      // Extrair Q line
-      const qLine = qIdx >= 0
-        ? (trimChunk.slice(qIdx).split('\n')[0] || '')
-        : '';
-
-      if (text.length > 5) {
-        notams.push({ id, text, from, to, q: qLine });
+      if (text.length > 10) {
+        // Tentar extrair datas simples se existirem
+        const dateMatch = trimChunk.match(/(\d{2}\/\d{2}\/\d{2,4}).*?a.*?(\d{2}\/\d{2}\/\d{2,4})/);
+        notams.push({ 
+          id, 
+          text, 
+          from: dateMatch ? dateMatch[1] : '', 
+          to: dateMatch ? dateMatch[2] : '', 
+          q: qLine 
+        });
       }
     }
   }
