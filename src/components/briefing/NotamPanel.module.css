@@ -196,6 +196,16 @@
 
 .arrow { font-size: .5rem; color: var(--txtd); flex-shrink: 0; }
 
+/* Número do NOTAM inline no header ex: G0576/26 */
+.notamNumInline {
+  font-family: var(--disp);
+  font-size: 0.52rem;
+  letter-spacing: 1.5px;
+  color: var(--acc);
+  flex-shrink: 0;
+  opacity: .8;
+}
+
 /* ── Expandido ───────────────────────────────────────── */
 .full {
   padding: 0 10px 10px;
