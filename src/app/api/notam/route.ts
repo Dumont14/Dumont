@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   try {
     const data = await fetchNotams(icao);
     return NextResponse.json(data, {
-      headers: { 'Cache-Control': 's-maxage=600, stale-while-revalidate=120' },
+      headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=60' },
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });

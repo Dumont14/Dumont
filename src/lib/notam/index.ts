@@ -11,19 +11,27 @@ export async function fetchNotams(icao: string): Promise<unknown> {
 }
 
 async function fetchNotamsAISWEB(icao: string): Promise<unknown> {
-  const user = process.env.AISWEB_USER;
-  const pass = process.env.AISWEB_PASS;
-  if (!user || !pass) throw new Error('AISWEB credentials not configured');
+  const proxyUrl = process.env.SUPABASE_AISWEB_PROXY_URL;
+  if (!proxyUrl) throw new Error('AISWEB proxy URL not configured');
 
   const res = await fetch(
-    `https://www.aisweb.aer.mil.br/api/notam?ICAOCode=${icao}&APIKey=${user}&APIPass=${pass}`,
-    { next: { revalidate: 300 } } // 5min — NOTAMs AD CLSD são urgentes
+    `${proxyUrl}?icao=${icao}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+      },
+      next: { revalidate: 300 },
+    }
   );
-  if (!res.ok) throw new Error(`AISWEB ${res.status}`);
-
-  // AISWEB retorna XML — converter para objeto utilizável
-  const text = await res.text();
-  return parseAISWEBResponse(text);
+  if (!res.ok) throw new Error(`AISWEB proxy ${res.status}`);
+  
+  const data = await res.json();
+  
+  // Se vier erro do proxy, lançar
+  if (data.error) throw new Error(data.error);
+  
+  // Retornar estrutura com notamList + raw para o parser
+  return data;
 }
 
 /** Parseia resposta AISWEB que pode ser XML ou JSON */
