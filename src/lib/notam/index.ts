@@ -302,7 +302,7 @@ export function parseNotams(raw: unknown, maxItems = 20): ParsedNotamEx[] {
 
       // Schedule — campo <d> separado, NÃO concatenado no texto
       const dField   = String(p.d || p.schedule || '').trim();
-      const schedule = dField ? parseSchedule(dField) : undefined;
+      const schedule = dField ? (parseSchedule(dField) ?? undefined) : undefined;
 
       return {
         id:       notamNum,
