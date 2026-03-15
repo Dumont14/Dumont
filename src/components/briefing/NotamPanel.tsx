@@ -54,7 +54,10 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
             .catch(() => null);
         }
       })
-      .catch(() => setError('Falha ao buscar NOTAMs'))
+      .catch(err => {
+        console.error('NOTAM Error:', err);
+        setError(err instanceof Error ? err.message : 'Falha ao buscar NOTAMs');
+      })
       .finally(() => setLoading(false));
   }, [icao, showAiSummary]);
 
