@@ -7,7 +7,15 @@ const isBrazilian = (icao: string) => /^SB[A-Z]{2}$/i.test(icao);
 
 export async function fetchNotams(icao: string): Promise<unknown> {
   const code = icao.toUpperCase();
-  return isBrazilian(code) ? fetchNotamsAISWEB(code) : fetchNotamsFAA(code);
+  if (isBrazilian(code)) {
+    try {
+      return await fetchNotamsAISWEB(code);
+    } catch (e) {
+      console.warn('AISWEB failed, falling back to FAA:', e);
+      return await fetchNotamsFAA(code);
+    }
+  }
+  return fetchNotamsFAA(code);
 }
 
 async function fetchNotamsAISWEB(icao: string): Promise<unknown> {
