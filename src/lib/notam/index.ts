@@ -1,5 +1,5 @@
 // src/lib/notam/index.ts
-import type { ParsedNotam, NotamSeverity } from '@/types';
+import type { ParsedNotamEx, NotamSeverity, AtsHours, ScheduleStatus } from '@/types';
 
 const isBrazilian = (icao: string) => /^SB[A-Z]{2}$/i.test(icao);
 
@@ -23,9 +23,7 @@ async function fetchNotamsAISWEB(icao: string): Promise<unknown> {
     || 'https://qwfoxxwctbeemmowaxpj.supabase.co/functions/v1/aisweb-proxy';
 
   const res = await fetch(`${proxyUrl}?icao=${icao}`, {
-    headers: {
-      'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-    },
+    headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}` },
     next: { revalidate: 300 },
   });
   if (!res.ok) throw new Error(`AISWEB proxy ${res.status}`);
@@ -71,27 +69,95 @@ async function fetchNotamsFAA(icao: string): Promise<unknown> {
   return res.json();
 }
 
-// ── HELPERS ──────────────────────────────────────────────
+// ── HELPERS DE DATA ──────────────────────────────────────
 
-/**
- * Converte YYMMDDHHMM (ex: "2603121314") → "12/03/26 13:14Z"
- * Se não for esse formato, retorna a string original limpa.
- */
+/** YYMMDDHHMM → "DD/MM/AAAA HH:MMZ" */
 function fmtNotamDate(raw: string): string {
   if (!raw) return '';
   const s = raw.trim();
-  // Formato AISWEB: YYMMDDHHMM (10 dígitos)
-  if (/^\d{10}$/.test(s)) {
-    const yy = s.slice(0, 2);
-    const mm = s.slice(2, 4);
-    const dd = s.slice(4, 6);
-    const hh = s.slice(6, 8);
-    const mn = s.slice(8, 10);
-    return `${dd}/${mm}/20${yy} ${hh}:${mn}Z`;
+  if (!/^\d{10}$/.test(s)) return '';
+  return `${s.slice(4,6)}/${s.slice(2,4)}/20${s.slice(0,2)} ${s.slice(6,8)}:${s.slice(8,10)}Z`;
+}
+
+// ── SCHEDULE: parsear campo <d> ──────────────────────────
+
+const DAY_MAP: Record<string, number> = {
+  MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6, SUN: 0,
+};
+const DAY_PT: Record<number, string> = {
+  0: 'Dom', 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex', 6: 'Sáb',
+};
+
+export function parseSchedule(d: string): ScheduleStatus | null {
+  if (!d || !d.trim()) return null;
+  const s = d.trim().toUpperCase();
+
+  // Extrair horário: HHMM-HHMM
+  const timeMatch = s.match(/(\d{4})\s*[-–]\s*(\d{4})/);
+  if (!timeMatch) return null;
+
+  const closeStart = parseInt(timeMatch[1].slice(0,2)) * 60 + parseInt(timeMatch[1].slice(2,4));
+  const closeEnd   = parseInt(timeMatch[2].slice(0,2)) * 60 + parseInt(timeMatch[2].slice(2,4));
+
+  // Extrair dias
+  let activeDays: number[] = [];
+
+  if (/DAILY|DLY|H24/i.test(s)) {
+    activeDays = [0, 1, 2, 3, 4, 5, 6];
+  } else {
+    const rangeMatch = s.match(/([A-Z]{3})\s*[-–]\s*([A-Z]{3})/);
+    if (rangeMatch) {
+      const start = DAY_MAP[rangeMatch[1]];
+      const end   = DAY_MAP[rangeMatch[2]];
+      if (start !== undefined && end !== undefined) {
+        let cur = start;
+        while (cur !== end) {
+          activeDays.push(cur);
+          cur = cur === 6 ? 0 : cur + 1;
+          if (activeDays.length > 7) break;
+        }
+        activeDays.push(end);
+      }
+    } else {
+      for (const [abbr, num] of Object.entries(DAY_MAP)) {
+        if (s.includes(abbr)) activeDays.push(num);
+      }
+    }
   }
-  // Formato ISO já legível — retornar sem lixo XML
-  if (s.startsWith('<?xml') || s.startsWith('<') || s.length > 30) return '';
-  return s;
+
+  if (activeDays.length === 0) activeDays = [0,1,2,3,4,5,6];
+
+  // Status agora (UTC)
+  const now        = new Date();
+  const nowDay     = now.getUTCDay();
+  const nowMin     = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const isDayActive  = activeDays.includes(nowDay);
+  const isTimeActive = nowMin >= closeStart && nowMin < closeEnd;
+  const closedNow    = isDayActive && isTimeActive;
+  const openNow      = !closedNow;
+
+  const fmtTime = (min: number) =>
+    `${String(Math.floor(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}Z`;
+
+  let nextChange = '';
+  if (closedNow) {
+    nextChange = `Abre às ${fmtTime(closeEnd)}`;
+  } else if (isDayActive && nowMin < closeStart) {
+    nextChange = `Fecha às ${fmtTime(closeStart)} (em ${closeStart - nowMin}min)`;
+  } else {
+    const nextDay = activeDays
+      .map(d => ({ d, diff: (d - nowDay + 7) % 7 || 7 }))
+      .sort((a, b) => a.diff - b.diff)[0];
+    if (nextDay) {
+      nextChange = `Próx. restrição: ${DAY_PT[nextDay.d]} às ${fmtTime(closeStart)}`;
+    }
+  }
+
+  const dayNames     = activeDays.map(d => DAY_PT[d]).join('-');
+  const closedPeriod = `${dayNames} ${fmtTime(closeStart)}–${fmtTime(closeEnd)}`;
+  const openPeriod   = `Aberto fora desse período`;
+
+  return { raw: d, closedNow, openNow, nextChange, closedPeriod, openPeriod };
 }
 
 // ── PADRÕES DE SEVERIDADE ────────────────────────────────
@@ -157,16 +223,6 @@ function getCategory(text: string): { l: string; c: string } {
 
 // ── HORÁRIO ATS ──────────────────────────────────────────
 
-export interface AtsHours {
-  raw: string;
-  open: number;
-  close: number;
-  isH24: boolean;
-  isOpen: boolean;
-  closingSoon: boolean;
-  opensIn?: number;
-}
-
 function parseAtsHours(text: string): AtsHours | null {
   if (/\bH24\b/i.test(text)) {
     return { raw: 'H24', open: 0, close: 1440, isH24: true, isOpen: true, closingSoon: false };
@@ -174,8 +230,8 @@ function parseAtsHours(text: string): AtsHours | null {
   const m = text.match(/(\d{4})\s*[-–]\s*(\d{4})/);
   if (!m) return null;
 
-  const open   = parseInt(m[1].slice(0, 2)) * 60 + parseInt(m[1].slice(2, 4));
-  const close  = parseInt(m[2].slice(0, 2)) * 60 + parseInt(m[2].slice(2, 4));
+  const open   = parseInt(m[1].slice(0,2)) * 60 + parseInt(m[1].slice(2,4));
+  const close  = parseInt(m[2].slice(0,2)) * 60 + parseInt(m[2].slice(2,4));
   const now    = new Date();
   const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
 
@@ -188,7 +244,7 @@ function parseAtsHours(text: string): AtsHours | null {
   return { raw: m[0], open, close, isH24: false, isOpen, closingSoon, opensIn };
 }
 
-export function extractAtsHours(notams: ParsedNotam[]): AtsHours | null {
+export function extractAtsHours(notams: ParsedNotamEx[]): AtsHours | null {
   const atsNotam = notams.find(n =>
     /AD\s+HR\s+SER|SER\s+ATS|HR\s+SER/i.test(n.text)
   );
@@ -202,77 +258,66 @@ export function extractAtsHours(notams: ParsedNotam[]): AtsHours | null {
 
 // ── PARSE PRINCIPAL ──────────────────────────────────────
 
-export function parseNotams(raw: unknown, maxItems = 20): ParsedNotam[] {
+export function parseNotams(raw: unknown, maxItems = 20): ParsedNotamEx[] {
   if (!raw) return [];
 
   const r = raw as any;
   if (r.error) throw new Error(String(r.error));
 
   let items: any[] = [];
-
-  // Formato do proxy AISWEB São Paulo: { notamList: [...] }
   if (Array.isArray(r.notamList)) items = r.notamList;
   else if (Array.isArray(r.items))  items = r.items;
   else if (Array.isArray(r.notam))  items = r.notam;
   else if (r.notam)                 items = [r.notam];
   else if (Array.isArray(raw))      items = raw as any[];
   else if (r.rawText) {
+    const t = String(r.rawText);
     return [{
-      id: '?', text: String(r.rawText),
-      from: '', to: '',
-      sev: getSeverity(String(r.rawText)),
-      cat: getCategory(String(r.rawText)),
+      id: '?', text: t, from: '', to: '',
+      sev: getSeverity(t), cat: getCategory(t),
+      notamNum: '?', validFrom: '', validTo: '',
     }];
   }
 
   return items
-    .map((n): ParsedNotam | null => {
+    .map((n): ParsedNotamEx | null => {
       const p  = n as any;
       const cr = p.coreNOTAMData?.notam;
 
-      // Extrair texto operacional — campo <e> do AISWEB já vem em p.text
+      // Texto operacional — campo <e>
       const text = String(
-        cr?.text         ||
-        cr?.originalText ||
-        p.text           ||
-        p.itemE          ||
-        p.e              ||
-        p.body           ||
-        p.mens           ||
-        p.texto          ||
-        p.message        ||
-        ''
+        cr?.text || cr?.originalText ||
+        p.text   || p.itemE || p.e   ||
+        p.body   || p.mens  || p.texto || p.message || ''
       ).trim();
 
-      // Ignorar itens com XML bruto ou vazios
       if (!text || text === 'undefined' || text.startsWith('<?xml')) return null;
 
-      // Schedule condicional — campo <d> do AISWEB (ex: "MON-FRI 1030-1300")
-      const schedule = String(p.d || p.schedule || '').trim();
+      // Número do NOTAM — campo <n> ex: "G0576/26"
+      const notamNum = String(p.n || cr?.id || p.notamId || p.numero || p.id || '?');
 
-      // Número do NOTAM — campo <n> do AISWEB (ex: "G0576/26")
-      const notamNum = String(p.n || p.id || p.notamId || p.numero || '?');
+      // Datas limpas — campos <b> e <c>
+      const validFrom = fmtNotamDate(String(p.from || p.b || cr?.effectiveStart || ''));
+      const validTo   = fmtNotamDate(String(p.to   || p.c || cr?.effectiveEnd   || ''));
 
-      // Datas — converter YYMMDDHHMM → legível, ignorar lixo XML
-      const fromRaw = String(cr?.effectiveStart || p.startValidity || p.from || p.inicio || p.b || '');
-      const toRaw   = String(cr?.effectiveEnd   || p.endValidity   || p.to   || p.fim    || p.c || '');
-
-      const from = fmtNotamDate(fromRaw);
-      const to   = fmtNotamDate(toRaw);
-
-      // Texto completo para exibição: texto + schedule se existir
-      const displayText = schedule ? `${text}\n${schedule}` : text;
+      // Schedule — campo <d> separado, NÃO concatenado no texto
+      const dField   = String(p.d || p.schedule || '').trim();
+      const schedule = dField ? parseSchedule(dField) : undefined;
 
       return {
-        id:   notamNum,
-        text: displayText,
-        from,
-        to,
-        sev:  getSeverity(text), // severidade baseada no texto original sem schedule
-        cat:  getCategory(text),
+        id:       notamNum,
+        text,                    // texto limpo sem schedule
+        from:     validFrom,
+        to:       validTo,
+        sev:      getSeverity(text),
+        cat:      getCategory(text),
+        notamNum,
+        schedule,
+        validFrom,
+        validTo,
       };
     })
-    .filter((n): n is ParsedNotam => n !== null)
+    .filter((n): n is ParsedNotamEx => n !== null)
     .filter(n => n.sev !== 'info' || n.cat.l !== 'GEN')
     .sort((a, b) =>
       ({ crit: 0, warn: 1, info: 2 })[a.sev] -
@@ -284,6 +329,10 @@ export function parseNotams(raw: unknown, maxItems = 20): ParsedNotam[] {
 export function extractCriticalTexts(raw: unknown): string[] {
   return parseNotams(raw)
     .filter(n => n.sev === 'crit' || n.sev === 'warn')
-    .map(n => n.text)
+    .map(n => {
+      const s = n.schedule;
+      if (s) return `${n.text} (${s.closedPeriod}) — ${s.closedNow ? 'FECHADO AGORA' : s.nextChange}`;
+      return n.text;
+    })
     .slice(0, 6);
 }
