@@ -186,9 +186,12 @@ export function extractAtsHours(notams: ParsedNotam[]): AtsHours | null {
 export function parseNotams(raw: unknown, maxItems = 20): ParsedNotam[] {
   if (!raw) return [];
 
-  let items: any[] = [];
   const r = raw as any;
+  if (r.error) {
+    throw new Error(String(r.error));
+  }
 
+  let items: any[] = [];
   if (Array.isArray(r.items))          items = r.items;
   else if (Array.isArray(r.notamList)) items = r.notamList;
   else if (Array.isArray(r.notam))     items = r.notam;

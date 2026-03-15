@@ -31,16 +31,33 @@ Deno.serve(async (req) => {
     }
 
     // Buscar NOTAMs do AISWEB
-    const aisbRes = await fetch(
-      `https://www.aisweb.aer.mil.br/api/notam?ICAOCode=${icao}&APIKey=${user}&APIPass=${pass}`,
-      {
-        headers: {
-          'User-Agent': 'DumontApp/1.0',
-          'Accept': 'application/json, text/xml, */*',
-        },
-        signal: AbortSignal.timeout(10000), // 10s timeout
-      }
-    );
+    console.log(`Fetching NOTAMs for ${icao}...`);
+    
+    const fetchAisweb = async (protocol: string) => {
+      const params = new URLSearchParams({
+        ICAOCode: icao,
+        APIKey: user,
+        APIPass: pass
+      });
+      return await fetch(
+        `${protocol}://www.aisweb.aer.mil.br/api/notam?${params.toString()}`,
+        {
+          headers: {
+            'Accept': 'application/json, text/xml, */*',
+          },
+          signal: AbortSignal.timeout(25000), // 25s timeout
+        }
+      );
+    };
+
+    let aisbRes: Response;
+    try {
+      aisbRes = await fetchAisweb('https');
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') throw e;
+      console.log('HTTPS failed or timed out, trying HTTP...');
+      aisbRes = await fetchAisweb('http');
+    }
 
     if (!aisbRes.ok) {
       return new Response(
