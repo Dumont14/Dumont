@@ -1,0 +1,119 @@
+/* src/components/briefing/TafPanel.module.css */
+
+.msg, .clear {
+  font-family: var(--mono); font-size: 0.85rem;
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0; color: var(--txtd);
+}
+.clear { color: var(--grn); }
+.warn  { font-family: var(--mono); font-size: 0.85rem; color: var(--amb); padding: 4px 0; }
+
+/* Header validade */
+.tafHeader {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-family: var(--mono); font-size: 0.68rem;
+  color: var(--txtd);
+}
+.tafIssued { }
+.tafValid  { color: var(--txt); }
+
+/* Períodos */
+.periods {
+  display: flex; flex-direction: column; gap: 3px;
+  margin-bottom: 10px;
+}
+
+.period {
+  border: 1px solid var(--brd);
+  background: rgba(0,0,0,.2);
+  padding: 6px 10px;
+}
+.periodAdverse {
+  border-color: rgba(255,61,61,.35);
+  background: rgba(255,61,61,.04);
+}
+
+.periodHead {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 4px; flex-wrap: wrap;
+}
+
+.periodType {
+  font-family: var(--disp); font-size: 0.50rem;
+  letter-spacing: 2px; color: var(--txtd);
+  min-width: 52px;
+}
+.periodTypeAdverse { color: var(--red); }
+
+/* Badges de categoria */
+.catBadge {
+  font-family: var(--disp); font-size: 0.46rem;
+  letter-spacing: 1.5px; padding: 2px 6px;
+}
+.catVmc  { color: var(--grn); border: 1px solid rgba(0,230,118,.35); background: rgba(0,230,118,.08); }
+.catMvfr { color: var(--amb); border: 1px solid rgba(255,171,0,.35); background: rgba(255,171,0,.08); }
+.catIfr  { color: var(--red); border: 1px solid rgba(255,61,61,.35);  background: rgba(255,61,61,.08); }
+.catLifr { color: #ff00aa;    border: 1px solid rgba(255,0,170,.35);  background: rgba(255,0,170,.08); }
+
+.validity {
+  font-family: var(--mono); font-size: 0.65rem;
+  color: var(--txtd); margin-left: auto;
+}
+
+/* Alertas adversos */
+.adverseRow {
+  display: flex; gap: 5px; flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+.adverseBadge {
+  font-family: var(--disp); font-size: 0.44rem;
+  letter-spacing: 1.5px; padding: 2px 7px;
+  color: var(--red); background: rgba(255,61,61,.12);
+  border: 1px solid rgba(255,61,61,.4);
+}
+
+/* Detalhes */
+.periodDetail {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 0.68rem;
+}
+.detail {
+  display: flex; align-items: center; gap: 4px;
+  color: var(--txt);
+}
+.detailLabel {
+  font-family: var(--disp); font-size: 0.38rem;
+  letter-spacing: 1.5px; color: var(--txtd);
+}
+.detailWarn { color: var(--amb); }
+.detailWx   { color: var(--red); }
+.detailCrit { color: var(--red); font-weight: 700; }
+
+/* RAW TAF */
+.rawDetails { margin-top: 8px; }
+.rawSummary {
+  font-family: var(--disp); font-size: 0.44rem;
+  letter-spacing: 2px; color: var(--txtd);
+  cursor: pointer; padding: 4px 0;
+  list-style: none;
+}
+.rawSummary:hover { color: var(--acc); }
+.rawPre {
+  font-family: var(--mono); font-size: 0.65rem;
+  color: var(--txt); white-space: pre-wrap;
+  word-break: break-word; line-height: 1.65;
+  background: rgba(0,0,0,.25);
+  border: 1px solid var(--brd);
+  padding: 8px 12px; margin-top: 4px;
+}
+
+/* Mobile */
+@media (max-width: 900px) {
+  .periodDetail  { gap: 8px; }
+  .detail        { font-size: var(--fs-sm-m); }
+  .validity      { font-size: var(--fs-sm-m); }
+  .tafHeader     { font-size: var(--fs-sm-m); }
+  .rawPre        { font-size: var(--fs-sm-m); }
+  .adverseBadge  { font-size: 0.55rem; padding: 3px 8px; }
+}
