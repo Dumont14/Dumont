@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Panel }       from '@/components/ui/Panel';
 import { parseNotams, extractAtsHours } from '@/lib/notam';
-import type { ParsedNotam, NotamSeverity } from '@/types';
+import type { ParsedNotamEx, NotamSeverity, AtsHours } from '@/types';
 import styles from './NotamPanel.module.css';
 
 interface NotamPanelProps {
@@ -12,17 +12,74 @@ interface NotamPanelProps {
 }
 
 const SEV_LABEL: Record<NotamSeverity, string> = {
-  crit: 'CRIT',
-  warn: 'WARN',
-  info: 'INFO',
+  crit: 'CRIT', warn: 'WARN', info: 'INFO',
 };
 
 function fmtMin(min: number): string {
-  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}Z`;
+  return `${String(Math.floor(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}Z`;
+}
+
+// ── Caixa de Horário ATS ──────────────────────────────
+function AtsBox({ ats }: { ats: AtsHours }) {
+  const cls  = ats.isH24 ? styles.atsH24
+    : !ats.isOpen        ? styles.atsClosed
+    : ats.closingSoon    ? styles.atsWarn
+    : styles.atsOpen;
+  const icon = ats.isH24 ? '🟢'
+    : !ats.isOpen        ? '🔴'
+    : ats.closingSoon    ? '🟡'
+    : '🟢';
+  const nowMin = new Date().getUTCHours() * 60 + new Date().getUTCMinutes();
+
+  return (
+    <div className={[styles.atsBox, cls].join(' ')}>
+      <span className={styles.atsIcon}>{icon}</span>
+      <div className={styles.atsInfo}>
+        <span className={styles.atsLabel}>SERVIÇO ATS</span>
+        {ats.isH24 ? (
+          <span className={styles.atsStatus}>H24 — Operação contínua</span>
+        ) : !ats.isOpen ? (
+          <span className={styles.atsStatus}>
+            FECHADO — Abre {ats.opensIn !== undefined ? `em ${ats.opensIn}min` : `às ${fmtMin(ats.open)}`}
+            {' '}· Solicite extensão ao órgão ATS
+          </span>
+        ) : ats.closingSoon ? (
+          <span className={styles.atsStatus}>
+            Encerra às {fmtMin(ats.close)} · {ats.close - nowMin}min restantes
+          </span>
+        ) : (
+          <span className={styles.atsStatus}>{fmtMin(ats.open)} – {fmtMin(ats.close)}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Caixa de Schedule do NOTAM (campo <d>) ────────────
+function ScheduleBox({ n }: { n: ParsedNotamEx }) {
+  const s = n.schedule;
+  if (!s) return null;
+  return (
+    <div className={[styles.schedBox, s.closedNow ? styles.schedClosed : styles.schedOpen].join(' ')}>
+      <div className={styles.schedTop}>
+        <span className={styles.schedIcon}>{s.closedNow ? '🔴' : '🟢'}</span>
+        <span className={styles.schedStatus}>
+          {s.closedNow ? 'FECHADO AGORA' : 'ABERTO AGORA'}
+        </span>
+        <span className={styles.schedNext}>{s.nextChange}</span>
+      </div>
+      <div className={styles.schedDetail}>
+        <span className={styles.schedPeriod}>
+          Fechado: <strong>{s.closedPeriod}</strong>
+        </span>
+        <span className={styles.schedOpenLabel}>{s.openPeriod}</span>
+      </div>
+    </div>
+  );
 }
 
 export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
-  const [notams,   setNotams]   = useState<ParsedNotam[]>([]);
+  const [notams,   setNotams]   = useState<ParsedNotamEx[]>([]);
   const [aiText,   setAiText]   = useState<string | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
@@ -35,13 +92,8 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
       .then(raw => {
         const parsed = parseNotams(raw);
         setNotams(parsed);
-
-        // AI summary apenas para NOTAMs críticos
         if (showAiSummary && parsed.some(n => n.sev === 'crit')) {
-          const critTexts = parsed
-            .filter(n => n.sev === 'crit')
-            .map(n => n.text)
-            .join('\n');
+          const critTexts = parsed.filter(n => n.sev === 'crit').map(n => n.text).join('\n');
           fetch('/api/ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -63,9 +115,7 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
 
   const hasCrit = notams.some(n => n.sev === 'crit');
   const hasWarn = notams.some(n => n.sev === 'warn');
-
-  // Horário ATS
-  const ats = extractAtsHours(notams);
+  const ats     = extractAtsHours(notams);
 
   const panelStatus = loading ? 'loading'
     : error   ? 'crit'
@@ -79,50 +129,15 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
       subtitle={icao}
       status={panelStatus as 'ok' | 'warn' | 'crit' | 'loading'}
     >
-      {loading && (
-        <div className={styles.msg}><span className="spin" /> Buscando NOTAMs…</div>
-      )}
-      {error && <div className={styles.error}>⚠ {error}</div>}
+      {loading && <div className={styles.msg}><span className="spin" /> Buscando NOTAMs…</div>}
+      {error   && <div className={styles.error}>⚠ {error}</div>}
 
-      {/* Horário ATS — sempre em destaque se presente */}
-      {ats && (
-        <div className={[
-          styles.atsBox,
-          ats.isH24 ? styles.atsH24 :
-          !ats.isOpen ? styles.atsClosed :
-          ats.closingSoon ? styles.atsWarn : styles.atsOpen,
-        ].join(' ')}>
-          <span className={styles.atsIcon}>
-            {ats.isH24 ? '🟢' : !ats.isOpen ? '🔴' : ats.closingSoon ? '🟡' : '🟢'}
-          </span>
-          <div className={styles.atsInfo}>
-            <span className={styles.atsLabel}>SERVIÇO ATS</span>
-            {ats.isH24 ? (
-              <span className={styles.atsStatus}>H24 — Operação contínua</span>
-            ) : !ats.isOpen ? (
-              <span className={styles.atsStatus}>
-                FECHADO — Abre {ats.opensIn !== undefined ? `em ${ats.opensIn}min` : `às ${fmtMin(ats.open)}`}
-                {' '}· Solicite extensão ao órgão ATS
-              </span>
-            ) : ats.closingSoon ? (
-              <span className={styles.atsStatus}>
-                Encerra às {fmtMin(ats.close)} · {ats.close - (new Date().getUTCHours() * 60 + new Date().getUTCMinutes())}min restantes
-              </span>
-            ) : (
-              <span className={styles.atsStatus}>
-                {fmtMin(ats.open)} – {fmtMin(ats.close)}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+      {ats && <AtsBox ats={ats} />}
 
-      {/* Sem NOTAMs relevantes */}
       {!loading && !error && notams.length === 0 && (
         <div className={styles.clear}>✓ Sem NOTAMs relevantes</div>
       )}
 
-      {/* AI Summary */}
       {aiText && (
         <div className={styles.aiBox}>
           <span className={styles.aiLabel}>DUMONT IA</span>
@@ -130,7 +145,6 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
         </div>
       )}
 
-      {/* Lista de NOTAMs */}
       <ul className={styles.list}>
         {notams.map(n => (
           <li key={n.id} className={[styles.item, styles[n.sev]].join(' ')}>
@@ -147,13 +161,27 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
               </span>
               <span className={styles.arrow}>{expanded === n.id ? '▲' : '▼'}</span>
             </button>
+
             {expanded === n.id && (
               <div className={styles.full}>
+                {/* Número do NOTAM */}
+                {n.notamNum && n.notamNum !== '?' && (
+                  <div className={styles.notamHeader}>
+                    <span className={styles.notamNum}>{n.notamNum}</span>
+                  </div>
+                )}
+
+                {/* Texto completo */}
                 <pre className={styles.pre}>{n.text}</pre>
-                {(n.from || n.to) && (
+
+                {/* Schedule operacional — aberto/fechado agora */}
+                <ScheduleBox n={n} />
+
+                {/* Validade */}
+                {(n.validFrom || n.validTo) && (
                   <div className={styles.validity}>
-                    {n.from && <span>FROM: {n.from}</span>}
-                    {n.to   && <span>TO: {n.to}</span>}
+                    {n.validFrom && <span>DE: {n.validFrom}</span>}
+                    {n.validTo   && <span>ATÉ: {n.validTo}</span>}
                   </div>
                 )}
               </div>
