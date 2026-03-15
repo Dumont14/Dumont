@@ -31,32 +31,63 @@ Deno.serve(async (req) => {
     }
 
     // Buscar NOTAMs do AISWEB
-    console.log(`Fetching NOTAMs for ${icao}...`);
+    console.log(`Fetching NOTAMs for ${icao} (v9 - User Pattern)...`);
     
-    const fetchAisweb = async (protocol: string) => {
+    const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+    
+    // Suporte a múltiplos nomes de variáveis (do usuário e as nossas)
+    const apiKey  = Deno.env.get('AISWEB_API_KEY') || user;
+    const apiPass = Deno.env.get('AISWEB_API_PASS') || pass;
+    const redemetKey = Deno.env.get('REDEMET_KEY');
+
+    const fetchAisweb = async () => {
+      // Usar exatamente o padrão de URL e parâmetros do usuário
       const params = new URLSearchParams({
-        ICAOCode: icao,
-        APIKey: user,
-        APIPass: pass
+        apiKey: apiKey || '',
+        apiPass: apiPass || '',
+        area: 'notam',
+        icaoCode: icao
       });
+      
+      // Nova URL fornecida pelo usuário
+      const url = `https://aisweb.decea.mil.br/api/?${params.toString()}`;
+      console.log(`[DEBUG] AISWEB Proxy v9 Fetch: ${url}`);
+
+      return await fetch(url, {
+        headers: { 'Accept': 'application/json, text/xml, */*', 'User-Agent': browserUA },
+        signal: AbortSignal.timeout(10000), // 10s para fail-fast
+      });
+    };
+
+    const fetchRedemet = async () => {
+      if (!redemetKey) throw new Error('REDEMET_KEY not configured');
       return await fetch(
-        `${protocol}://www.aisweb.aer.mil.br/api/notam?${params.toString()}`,
+        `https://api-redemet.decea.mil.br/notam?icao=${icao}&api_key=${redemetKey}`,
         {
-          headers: {
-            'Accept': 'application/json, text/xml, */*',
-          },
-          signal: AbortSignal.timeout(25000), // 25s timeout
+          headers: { 'Accept': 'application/json', 'User-Agent': browserUA },
+          signal: AbortSignal.timeout(10000), 
         }
       );
     };
 
-    let aisbRes: Response;
+    let aisbRes: Response | null = null;
+    let errorMsg = '';
+
     try {
-      aisbRes = await fetchAisweb('https');
+      aisbRes = await fetchAisweb();
+      if (!aisbRes.ok) throw new Error(`AISWEB ${aisbRes.status}`);
     } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') throw e;
-      console.log('HTTPS failed or timed out, trying HTTP...');
-      aisbRes = await fetchAisweb('http');
+      errorMsg = `AISWEB: ${e instanceof Error ? e.message : 'Error'}`;
+      try {
+        aisbRes = await fetchRedemet();
+      } catch (re) {
+        errorMsg += ` | REDEMET: ${re instanceof Error ? re.message : 'Error'}`;
+        throw new Error(errorMsg);
+      }
+    }
+
+    if (!aisbRes || !aisbRes.ok) {
+      throw new Error(errorMsg || `Proxy failed with status ${aisbRes?.status}`);
     }
 
     if (!aisbRes.ok) {

@@ -81,6 +81,30 @@ export interface VoiceResponse {
   type: VoiceIntent | 'error'; lang: VoiceLang;
 }
 
+// ── Airport Information ────────────────────────────────
+export interface Frequency {
+  type: string;
+  mhz: string;
+  description: string;
+}
+
+export interface Runway {
+  le_ident: string;
+  he_ident: string;
+  length_ft: number;
+  width_ft: number;
+  surface: string;
+  closed: boolean;
+}
+
+export interface AirportInfo {
+  icao: string;
+  name: string;
+  frequencies: Frequency[];
+  runways: Runway[];
+  source: 'ourairports' | 'aisweb' | 'combined';
+}
+
 // ── API ─────────────────────────────────────────────────
 export interface ApiError { error: string; }
 export type ApiResult<T> = T | ApiError;
