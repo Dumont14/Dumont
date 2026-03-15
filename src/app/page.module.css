@@ -52,7 +52,7 @@
 
 .logo {
   font-family: var(--disp);
-  font-size: 1.05rem;
+  font-size: .9rem;
   font-weight: 900;
   letter-spacing: 4px;
   color: var(--acc2);
@@ -61,7 +61,7 @@
 
 .clock {
   font-family: var(--mono);
-  font-size: 0.80rem;
+  font-size: .62rem;
   color: var(--txtd);
   letter-spacing: 1px;
   line-height: 1;
@@ -90,7 +90,7 @@
 
 .inputLabel {
   font-family: var(--disp);
-  font-size: 0.55rem;
+  font-size: .38rem;
   letter-spacing: 2px;
   color: var(--txtd);
 }
@@ -100,7 +100,7 @@
   border: 1px solid var(--brd);
   color: var(--txtb);
   font-family: var(--disp);
-  font-size: 1.05rem;
+  font-size: .9rem;
   letter-spacing: 3px;
   padding: 6px 12px;
   width: 100px;
@@ -120,7 +120,7 @@
 
 .briefBtn {
   font-family: var(--disp);
-  font-size: 0.72rem;
+  font-size: .56rem;
   letter-spacing: 3px;
   padding: 8px 20px;
   background: linear-gradient(135deg, rgba(0,170,255,.15), rgba(0,212,255,.08));
@@ -141,6 +141,13 @@
 .briefBtn:active { transform: scale(.98); }
 
 /* Feed toggle — desktop only */
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .feedToggle {
   display: flex;
   width: 34px; height: 34px;
@@ -156,6 +163,40 @@
   transition: background .15s;
 }
 .feedToggle:hover { background: rgba(0,170,255,.22); }
+
+/* Toggle modo piloto/completo */
+.modeToggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: rgba(0,230,118,.08);
+  border: 1px solid rgba(0,230,118,.3);
+  color: var(--grn);
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+  clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 0 100%);
+}
+.modeToggle:hover {
+  background: rgba(0,230,118,.15);
+  border-color: var(--grn);
+}
+.modeToggleFull {
+  background: rgba(187,134,252,.08);
+  border-color: rgba(187,134,252,.4);
+  color: var(--purp);
+}
+.modeToggleFull:hover {
+  background: rgba(187,134,252,.15);
+  border-color: var(--purp);
+}
+.modeIcon  { font-size: .85rem; }
+.modeLabel {
+  font-family: var(--disp);
+  font-size: .40rem;
+  letter-spacing: 2px;
+}
 
 /* ── CONTENT ────────────────────────────────────────── */
 .content {
@@ -177,7 +218,7 @@
   text-align: center;
 }
 .welcomeIcon { font-size: 2.5rem; opacity: .3; }
-.welcomeSub  { font-size: 0.92rem; font-family: var(--mono); }
+.welcomeSub  { font-size: .8rem; font-family: var(--mono); }
 
 .panels {
   display: flex;
@@ -245,7 +286,7 @@
 .navActive .navIcon { text-shadow: 0 0 12px var(--acc); }
 
 .navIcon  { font-size: 1.1rem; }
-.navLabel { font-family: var(--disp); font-size: 0.55rem; letter-spacing: 2px; }
+.navLabel { font-family: var(--disp); font-size: .38rem; letter-spacing: 2px; }
 
 /* ── OVERLAY ────────────────────────────────────────── */
 .overlay {
@@ -292,8 +333,9 @@
   }
 
   /* Logo+clock em coluna, espaço mínimo */
-  .logo        { font-size: var(--fs-disp-m); letter-spacing: 3px; }
-  .clock       { font-size: var(--fs-sm-m); }
+  .headerLeft {
+    flex-shrink: 0;
+  }
 
   /* Search ocupa linha inteira */
   .search {
@@ -310,15 +352,15 @@
   .input {
     width: 100%;
     min-width: 56px;
-    font-size: var(--fs-lg-m);
-    padding: 8px 10px;
+    font-size: .75rem;
+    padding: 6px 8px;
     letter-spacing: 2px;
   }
 
   .briefBtn {
-    padding: 0 16px;
-    font-size: var(--fs-sm-m);
-    height: 38px;
+    padding: 0 14px;
+    font-size: .48rem;
+    height: 34px;
   }
 
   /* Feed toggle some — substituído pelo bottom nav */
@@ -334,11 +376,18 @@
   /* Bottom nav aparece */
   .bottomNav { display: flex; }
 
-  .navLabel { font-size: 0.62rem; letter-spacing: 1.5px; }
-  .navIcon  { font-size: 1.3rem; }
-
-  .welcome p   { font-size: var(--fs-lg-m); }
-  .welcomeSub  { font-size: var(--fs-md-m); }
-
   .overlay { display: block; }
+
+  .crewPlaceholder {
+    position: fixed;
+    inset: 0;
+    bottom: 60px;
+    background: var(--bg);
+  }
+}
+
+@media (max-width: 400px) {
+  .logo  { font-size: .75rem; letter-spacing: 2px; }
+  .clock { font-size: .55rem; }
+  .input { font-size: .65rem; letter-spacing: 1px; }
 }
