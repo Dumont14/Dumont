@@ -64,10 +64,44 @@ export interface ParsedNotam {
   sev: NotamSeverity; cat: { l: string; c: string };
 }
 
+export interface ScheduleStatus {
+  raw:          string;   // "MON-FRI 1030-1300"
+  closedNow:    boolean;
+  openNow:      boolean;
+  nextChange:   string;   // "Abre às 13:00Z"
+  closedPeriod: string;   // "Seg-Sex 10:30–13:00Z"
+  openPeriod:   string;   // "Aberto fora desse período"
+}
+
+export interface ParsedNotamEx extends ParsedNotam {
+  notamNum:  string;            // "G0576/26"
+  schedule?: ScheduleStatus;
+  validFrom: string;            // "12/03/2026 13:14Z"
+  validTo:   string;            // "31/03/2026 13:00Z"
+}
+
 export interface AtsHours {
   raw: string; open: number; close: number;
   isH24: boolean; isOpen: boolean;
   closingSoon: boolean; opensIn?: number;
+}
+
+// ── Airport Information ─────────────────────────────────
+export interface Frequency {
+  type: string; mhz: string; description: string;
+}
+
+export interface Runway {
+  le_ident: string; he_ident: string;
+  length_ft: number; width_ft: number;
+  surface: string; closed: boolean;
+}
+
+export interface AirportInfo {
+  icao: string; name: string;
+  frequencies: Frequency[];
+  runways: Runway[];
+  source: 'ourairports' | 'aisweb' | 'combined';
 }
 
 // ── Voice / Dumont ──────────────────────────────────────
@@ -79,30 +113,6 @@ export interface VoiceRequest  { text: string; lang?: string; }
 export interface VoiceResponse {
   reply: string; icao: string | null; icao_arr?: string | null;
   type: VoiceIntent | 'error'; lang: VoiceLang;
-}
-
-// ── Airport Information ────────────────────────────────
-export interface Frequency {
-  type: string;
-  mhz: string;
-  description: string;
-}
-
-export interface Runway {
-  le_ident: string;
-  he_ident: string;
-  length_ft: number;
-  width_ft: number;
-  surface: string;
-  closed: boolean;
-}
-
-export interface AirportInfo {
-  icao: string;
-  name: string;
-  frequencies: Frequency[];
-  runways: Runway[];
-  source: 'ourairports' | 'aisweb' | 'combined';
 }
 
 // ── API ─────────────────────────────────────────────────
