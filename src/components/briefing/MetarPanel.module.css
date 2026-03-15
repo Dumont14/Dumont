@@ -1,7 +1,7 @@
 /* src/components/briefing/MetarPanel.module.css */
 .loading, .error {
   font-family: var(--mono);
-  font-size: .72rem;
+  font-size: 0.85rem;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -12,7 +12,7 @@
 
 .raw {
   font-family: var(--mono);
-  font-size: .65rem;
+  font-size: 0.80rem;
   color: var(--txt);
   white-space: pre-wrap;
   word-break: break-all;
@@ -36,10 +36,11 @@
   grid-template-columns: 100px 1fr;
   gap: 4px 12px;
   font-family: var(--mono);
-  font-size: .68rem;
+  font-size: 0.82rem;
 }
 .grid dt {
   color: var(--txtd);
+  font-size: 0.80rem;
   letter-spacing: 1px;
   align-self: center;
 }
@@ -63,7 +64,7 @@
   align-items: center;
   gap: 6px;
   font-family: var(--mono);
-  font-size: .6rem;
+  font-size: 0.72rem;
   color: var(--amb);
   letter-spacing: .5px;
   opacity: .85;
@@ -71,4 +72,16 @@
 
 .sunTimes span {
   cursor: default;
+}
+
+@media (max-width: 900px) {
+  .raw       { font-size: var(--fs-md-m); line-height: 1.8; }
+  .grid      { 
+    font-size: var(--fs-md-m); 
+    grid-template-columns: 110px 1fr;
+    gap: 6px 14px;
+  }
+  .loading,
+  .error     { font-size: var(--fs-md-m); }
+  .sunTimes  { font-size: var(--fs-sm-m); }
 }

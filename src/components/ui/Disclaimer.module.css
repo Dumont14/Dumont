@@ -20,7 +20,7 @@
 /* Texto que some */
 .text {
   font-family: var(--mono);
-  font-size: .6rem;
+  font-size: 0.72rem;
   color: var(--amb);
   letter-spacing: .4px;
   line-height: 1.5;
@@ -54,7 +54,7 @@
 
 .link {
   font-family: var(--disp);
-  font-size: .42rem;
+  font-size: 0.55rem;
   letter-spacing: 1.5px;
   padding: 3px 8px;
   border: 1px solid rgba(255,171,0,.35);
@@ -68,4 +68,9 @@
   background: rgba(255,171,0,.1);
   border-color: var(--amb);
   opacity: 1;
+}
+
+@media (max-width: 900px) {
+  .text  { font-size: var(--fs-sm-m); }
+  .link  { font-size: 0.62rem; padding: 4px 10px; }
 }

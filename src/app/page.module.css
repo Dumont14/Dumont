@@ -52,7 +52,7 @@
 
 .logo {
   font-family: var(--disp);
-  font-size: .9rem;
+  font-size: 1.05rem;
   font-weight: 900;
   letter-spacing: 4px;
   color: var(--acc2);
@@ -61,7 +61,7 @@
 
 .clock {
   font-family: var(--mono);
-  font-size: .62rem;
+  font-size: 0.80rem;
   color: var(--txtd);
   letter-spacing: 1px;
   line-height: 1;
@@ -90,7 +90,7 @@
 
 .inputLabel {
   font-family: var(--disp);
-  font-size: .38rem;
+  font-size: 0.55rem;
   letter-spacing: 2px;
   color: var(--txtd);
 }
@@ -100,7 +100,7 @@
   border: 1px solid var(--brd);
   color: var(--txtb);
   font-family: var(--disp);
-  font-size: .9rem;
+  font-size: 1.05rem;
   letter-spacing: 3px;
   padding: 6px 12px;
   width: 100px;
@@ -120,7 +120,7 @@
 
 .briefBtn {
   font-family: var(--disp);
-  font-size: .56rem;
+  font-size: 0.72rem;
   letter-spacing: 3px;
   padding: 8px 20px;
   background: linear-gradient(135deg, rgba(0,170,255,.15), rgba(0,212,255,.08));
@@ -177,7 +177,7 @@
   text-align: center;
 }
 .welcomeIcon { font-size: 2.5rem; opacity: .3; }
-.welcomeSub  { font-size: .8rem; font-family: var(--mono); }
+.welcomeSub  { font-size: 0.92rem; font-family: var(--mono); }
 
 .panels {
   display: flex;
@@ -245,7 +245,7 @@
 .navActive .navIcon { text-shadow: 0 0 12px var(--acc); }
 
 .navIcon  { font-size: 1.1rem; }
-.navLabel { font-family: var(--disp); font-size: .38rem; letter-spacing: 2px; }
+.navLabel { font-family: var(--disp); font-size: 0.55rem; letter-spacing: 2px; }
 
 /* ── OVERLAY ────────────────────────────────────────── */
 .overlay {
@@ -292,9 +292,8 @@
   }
 
   /* Logo+clock em coluna, espaço mínimo */
-  .headerLeft {
-    flex-shrink: 0;
-  }
+  .logo        { font-size: var(--fs-disp-m); letter-spacing: 3px; }
+  .clock       { font-size: var(--fs-sm-m); }
 
   /* Search ocupa linha inteira */
   .search {
@@ -311,15 +310,15 @@
   .input {
     width: 100%;
     min-width: 56px;
-    font-size: .75rem;
-    padding: 6px 8px;
+    font-size: var(--fs-lg-m);
+    padding: 8px 10px;
     letter-spacing: 2px;
   }
 
   .briefBtn {
-    padding: 0 14px;
-    font-size: .48rem;
-    height: 34px;
+    padding: 0 16px;
+    font-size: var(--fs-sm-m);
+    height: 38px;
   }
 
   /* Feed toggle some — substituído pelo bottom nav */
@@ -335,18 +334,11 @@
   /* Bottom nav aparece */
   .bottomNav { display: flex; }
 
+  .navLabel { font-size: 0.62rem; letter-spacing: 1.5px; }
+  .navIcon  { font-size: 1.3rem; }
+
+  .welcome p   { font-size: var(--fs-lg-m); }
+  .welcomeSub  { font-size: var(--fs-md-m); }
+
   .overlay { display: block; }
-
-  .crewPlaceholder {
-    position: fixed;
-    inset: 0;
-    bottom: 60px;
-    background: var(--bg);
-  }
-}
-
-@media (max-width: 400px) {
-  .logo  { font-size: .75rem; letter-spacing: 2px; }
-  .clock { font-size: .55rem; }
-  .input { font-size: .65rem; letter-spacing: 1px; }
 }

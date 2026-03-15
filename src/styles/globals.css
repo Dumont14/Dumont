@@ -22,6 +22,22 @@
 
   --feed-width: 296px;
   --radius-clip: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+
+  /* ── TIPOGRAFIA BASE ──────────────────────────────── */
+  --fs-xs:   0.72rem;   /* timestamps, labels secundários */
+  --fs-sm:   0.80rem;   /* labels, badges, categorias */
+  --fs-md:   0.90rem;   /* dados operacionais, METAR raw */
+  --fs-lg:   1.05rem;   /* valores principais, categoria voo */
+  --fs-xl:   1.20rem;   /* títulos de painel */
+  --fs-disp: 1.10rem;   /* logo, display principal */
+
+  /* Mobile — aumentar 15% */
+  --fs-xs-m:   0.82rem;
+  --fs-sm-m:   0.92rem;
+  --fs-md-m:   1.02rem;
+  --fs-lg-m:   1.18rem;
+  --fs-xl-m:   1.32rem;
+  --fs-disp-m: 1.25rem;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

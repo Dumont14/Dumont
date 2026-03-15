@@ -61,7 +61,7 @@
 /* ── Label ───────────────────────────────────────────── */
 .label {
   font-family: var(--disp);
-  font-size: .44rem;
+  font-size: 0.55rem;
   letter-spacing: 3px;
   color: var(--txtd);
   white-space: nowrap;
@@ -81,7 +81,7 @@
   background: rgba(6,10,14,.85);
   border: 1px solid var(--brd);
   color: var(--txtd);
-  font-size: .8rem;
+  font-size: 0.95rem;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -138,7 +138,7 @@
 }
 .bubbleName {
   font-family: var(--disp);
-  font-size: .52rem;
+  font-size: 0.65rem;
   letter-spacing: 3px;
   color: var(--acc2);
 }
@@ -157,7 +157,7 @@
 .heard {
   padding: 8px 14px 6px;
   font-family: var(--mono);
-  font-size: .58rem;
+  font-size: 0.72rem;
   color: var(--txtd);
   border-bottom: 1px solid var(--brd);
   line-height: 1.5;
@@ -166,7 +166,7 @@
 .reply {
   padding: 10px 14px 12px;
   font-family: var(--ui);
-  font-size: .88rem;
+  font-size: 1.00rem;
   font-weight: 500;
   color: var(--txtb);
   line-height: 1.7;
@@ -179,7 +179,7 @@
 }
 .replayBtn {
   font-family: var(--disp);
-  font-size: .42rem;
+  font-size: 0.55rem;
   letter-spacing: 2px;
   padding: 3px 10px;
   border: 1px solid var(--brd);
@@ -191,7 +191,7 @@
 .replayBtn:hover { border-color: var(--acc); color: var(--acc); }
 .briefBtn {
   font-family: var(--disp);
-  font-size: .42rem;
+  font-size: 0.55rem;
   letter-spacing: 2px;
   padding: 3px 10px;
   border: 1px solid var(--acc);
@@ -207,4 +207,8 @@
 @media (max-width: 900px) {
   .wrap   { bottom: 72px; }
   .bubble { bottom: 152px; }
+  .label      { font-size: 0.62rem; }
+  .reply      { font-size: var(--fs-lg-m); line-height: 1.75; }
+  .heard      { font-size: var(--fs-sm-m); }
+  .bubbleName { font-size: var(--fs-sm-m); }
 }
