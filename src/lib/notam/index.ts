@@ -11,7 +11,7 @@ export async function fetchNotams(icao: string): Promise<unknown> {
 }
 
 async function fetchNotamsAISWEB(icao: string): Promise<unknown> {
-  const proxyUrl = process.env.SUPABASE_AISWEB_PROXY_URL;
+  const proxyUrl = process.env.SUPABASE_AISWEB_PROXY_URL || 'https://qwfoxxwctbeemmowaxpj.supabase.co/functions/v1/aisweb-proxy';
   if (!proxyUrl) throw new Error('AISWEB proxy URL not configured');
 
   const res = await fetch(
