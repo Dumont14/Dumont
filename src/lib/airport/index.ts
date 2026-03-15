@@ -1,46 +1,92 @@
 // src/lib/airport/index.ts
-// Fetches airport frequencies and runways from OurAirports CSV + AISWEB proxy
+// Busca dados oficiais do aeródromo:
+// - BR: AISWEB ROTAER via proxy São Paulo (dados DECEA oficiais)
+// - Internacional: Our Airports CSV (fallback)
 
 export interface Frequency {
-  type: string;        // TWR, APP, GND, ATIS, UNICOM, etc
-  mhz: string;         // ex: "118.100"
+  type:        string;   // TWR, APP, GND, ATIS, RADIO, AFIS, UNICOM
+  callsign:    string;
+  mhz:         string;   // "125.500"
   description: string;
 }
 
 export interface Runway {
-  le_ident: string;    // ex: "06"
-  he_ident: string;    // ex: "24"
-  length_ft: number;
-  width_ft: number;
-  surface: string;     // ASPH, CONC, GRASS, etc
-  closed: boolean;
+  ident:    string;   // "06/24"
+  length_m: number;
+  width_m:  number;
+  surface:  string;   // ASPH, CONC, GRASS
+  closed:   boolean;
+  tora_le?: number | null;  // distância declarada cabeceira baixa
+  tora_he?: number | null;  // distância declarada cabeceira alta
 }
 
 export interface AirportInfo {
-  icao: string;
-  name: string;
+  icao:       string;
+  name:       string;
+  city:       string;
+  uf:         string;
+  lat:        string;
+  lng:        string;
+  alt_ft:     string;
+  utc:        string;
+  type_opr:   string;   // "VFR IFR"
+  type_util:  string;   // "PUB"
+  ats_hours:  string;   // "DLY 1015-2145"
   frequencies: Frequency[];
-  runways: Runway[];
-  source: 'ourairports' | 'aisweb' | 'combined';
+  runways:    Runway[];
+  remarks:    string[];  // observações operacionais
+  fuel:       string;    // info de abastecimento
+  source:     'aisweb' | 'ourairports';
 }
+
+const isBrazilian = (icao: string) => /^S[A-Z]{3}$/i.test(icao);
+
+// ── AISWEB ROTAER (BR) ───────────────────────────────────
+
+async function fetchFromAISWEB(icao: string): Promise<AirportInfo | null> {
+  const proxyUrl = process.env.SUPABASE_AISWEB_PROXY_URL
+    || 'https://qwfoxxwctbeemmowaxpj.supabase.co/functions/v1/aisweb-proxy';
+
+  const res = await fetch(`${proxyUrl}?icao=${icao}&area=rotaer`, {
+    headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}` },
+    next: { revalidate: 86400 }, // cache 24h — ROTAER não muda com frequência
+  });
+
+  if (!res.ok) throw new Error(`AISWEB ROTAER proxy ${res.status}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+
+  const r = data.rotaer;
+  if (!r) return null;
+
+  return {
+    icao:        r.icao        || icao,
+    name:        r.name        || '',
+    city:        r.city        || '',
+    uf:          r.uf          || '',
+    lat:         r.lat         || '',
+    lng:         r.lng         || '',
+    alt_ft:      r.alt_ft      || '',
+    utc:         r.utc         || '',
+    type_opr:    r.type_opr    || '',
+    type_util:   r.type_util   || '',
+    ats_hours:   r.ats_hours   || '',
+    frequencies: r.frequencies || [],
+    runways:     r.runways     || [],
+    remarks:     r.remarks     || [],
+    fuel:        r.fuel        || '',
+    source:      'aisweb',
+  };
+}
+
+// ── Our Airports CSV (internacional) ─────────────────────
 
 const CSV_BASE = 'https://davidmegginson.github.io/ourairports-data';
-const isBrazilian = (icao: string) => /^SB[A-Z]{2}$/i.test(icao);
-
-function getProxyUrl() {
-  return process.env.SUPABASE_AISWEB_PROXY_URL || 'https://qwfoxxwctbeemmowaxpj.supabase.co/functions/v1/aisweb-proxy';
-}
-
-function getAnonKey() {
-  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-}
-
-// Cache em memória para os CSVs (evitar fetch repetido)
 const csvCache: Record<string, string> = {};
 
 async function fetchCSV(url: string): Promise<string> {
   if (csvCache[url]) return csvCache[url];
-  const res = await fetch(url, { next: { revalidate: 86400 } } as any); // cache 24h
+  const res = await fetch(url, { next: { revalidate: 86400 } });
   if (!res.ok) throw new Error(`CSV fetch failed: ${url}`);
   const text = await res.text();
   csvCache[url] = text;
@@ -60,29 +106,59 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
+function normalizeFreqType(type: string): string {
+  const map: Record<string, string> = {
+    'TOWER': 'TWR', 'APPROACH': 'APP', 'GROUND': 'GND',
+    'DELIVERY': 'DEL', 'CTAF': 'UNICOM', 'RADIO': 'RADIO',
+    'INFO': 'AFIS',
+  };
+  return map[type.toUpperCase()] || type.toUpperCase();
+}
+
+function normalizeSurface(s: string): string {
+  const upper = s.toUpperCase();
+  if (upper.includes('ASP') || upper.includes('BIT')) return 'ASPH';
+  if (upper.includes('CON')) return 'CONC';
+  if (upper.includes('GRS') || upper.includes('GRASS') || upper.includes('TURF')) return 'GRASS';
+  if (upper.includes('GRV') || upper.includes('GRAVEL')) return 'GRAVEL';
+  if (upper.includes('DIRT') || upper.includes('EARTH')) return 'DIRT';
+  return upper || 'N/A';
+}
+
 async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
   try {
-    const code = icao.toUpperCase();
     const [freqCSV, rwyCSV, aptCSV] = await Promise.all([
       fetchCSV(`${CSV_BASE}/airport-frequencies.csv`),
       fetchCSV(`${CSV_BASE}/runways.csv`),
       fetchCSV(`${CSV_BASE}/airports.csv`),
     ]);
 
-    // Encontrar airport_ref pelo ICAO
     const aptLines  = aptCSV.split('\n');
     const aptHeader = parseCSVLine(aptLines[0]);
     const icaoIdx   = aptHeader.indexOf('ident');
     const idIdx     = aptHeader.indexOf('id');
     const nameIdx   = aptHeader.indexOf('name');
+    const latIdx    = aptHeader.indexOf('latitude_deg');
+    const lngIdx    = aptHeader.indexOf('longitude_deg');
+    const elevIdx   = aptHeader.indexOf('elevation_ft');
+    const muniIdx   = aptHeader.indexOf('municipality');
 
-    let airportId  = '';
+    let airportId = '';
     let airportName = '';
+    let airportLat = '';
+    let airportLng = '';
+    let airportElev = '';
+    let airportCity = '';
+
     for (let i = 1; i < aptLines.length; i++) {
       const cols = parseCSVLine(aptLines[i]);
-      if (cols[icaoIdx]?.toUpperCase() === code) {
+      if (cols[icaoIdx]?.toUpperCase() === icao) {
         airportId   = cols[idIdx];
         airportName = cols[nameIdx];
+        airportLat  = cols[latIdx];
+        airportLng  = cols[lngIdx];
+        airportElev = cols[elevIdx];
+        airportCity = cols[muniIdx];
         break;
       }
     }
@@ -97,17 +173,17 @@ async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
     const fDescIdx   = freqHeader.indexOf('description');
 
     const frequencies: Frequency[] = [];
+    const FREQ_TYPES = ['TWR','TOWER','APP','APPROACH','GND','GROUND','ATIS',
+                        'UNICOM','CTAF','DEL','DELIVERY','AFIS','RADIO','INFO'];
     for (let i = 1; i < freqLines.length; i++) {
       const cols = parseCSVLine(freqLines[i]);
       if (cols[fRefIdx] !== airportId) continue;
       const type = cols[fTypeIdx]?.toUpperCase() || '';
-      // Filtrar apenas tipos relevantes para briefing
-      if (!['TWR','TOWER','APP','APPROACH','GND','GROUND',
-            'ATIS','UNICOM','CTAF','DEL','DELIVERY',
-            'AFIS','RADIO','INFO'].includes(type)) continue;
+      if (!FREQ_TYPES.includes(type)) continue;
       frequencies.push({
-        type: normalizeFreqType(type),
-        mhz:  cols[fMhzIdx] || '',
+        type:        normalizeFreqType(type),
+        callsign:    '',
+        mhz:         cols[fMhzIdx] || '',
         description: cols[fDescIdx] || '',
       });
     }
@@ -127,19 +203,23 @@ async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
     for (let i = 1; i < rwyLines.length; i++) {
       const cols = parseCSVLine(rwyLines[i]);
       if (cols[rRefIdx] !== airportId) continue;
+      const lenFt = parseInt(cols[rLenIdx]) || 0;
       runways.push({
-        le_ident:  cols[rLeIdx]  || '',
-        he_ident:  cols[rHeIdx]  || '',
-        length_ft: parseInt(cols[rLenIdx]) || 0,
-        width_ft:  parseInt(cols[rWidIdx]) || 0,
-        surface:   normalizeSurface(cols[rSurfIdx] || ''),
-        closed:    cols[rClosIdx] === '1',
+        ident:    `${cols[rLeIdx]}/${cols[rHeIdx]}`,
+        length_m: Math.round(lenFt * 0.3048),
+        width_m:  parseInt(cols[rWidIdx]) || 0,
+        surface:  normalizeSurface(cols[rSurfIdx] || ''),
+        closed:   cols[rClosIdx] === '1',
       });
     }
 
     return {
-      icao: code, name: airportName,
-      frequencies, runways,
+      icao, name: airportName, city: airportCity,
+      uf: '', lat: airportLat, lng: airportLng,
+      alt_ft: airportElev, utc: '',
+      type_opr: '', type_util: '',
+      ats_hours: '', frequencies, runways,
+      remarks: [], fuel: '',
       source: 'ourairports',
     };
   } catch {
@@ -147,167 +227,20 @@ async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
   }
 }
 
-async function fetchFromAiswebRotaer(icao: string): Promise<AirportInfo | null> {
-  try {
-    const proxyUrl = getProxyUrl();
-    const res = await fetch(
-      `${proxyUrl}?icao=${icao.toUpperCase()}&area=rotaer`,
-      {
-        headers: { 'Authorization': `Bearer ${getAnonKey()}` },
-        next: { revalidate: 3600 },
-      } as any
-    );
-
-    if (!res.ok) return null;
-    const data = await res.json();
-    const xml = data.raw || '';
-    if (!xml) return null;
-
-    return parseRotaerXML(icao.toUpperCase(), xml);
-  } catch (e) {
-    console.error(`[ROTAER] Error for ${icao}:`, e);
-    return null;
-  }
-}
-
-function parseRotaerXML(icao: string, xml: string): AirportInfo {
-  const getTag = (content: string, tag: string) => {
-    const m = content.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
-    return m ? m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim() : '';
-  };
-
-  const name = getTag(xml, 'nome') || getTag(xml, 'origem') || icao;
-  
-  // 1. Tentar frequências estruturadas
-  const frequencies: Frequency[] = [];
-  const freqBlocks = xml.match(/<frequencia[^>]*>([\s\S]*?)<\/frequencia>/gi) || [];
-  for (const block of freqBlocks) {
-    const type = getTag(block, 'tipo');
-    const mhz = getTag(block, 'valor');
-    if (type && mhz) {
-      frequencies.push({
-        type: normalizeFreqType(type.toUpperCase()),
-        mhz,
-        description: getTag(block, 'nome') || '',
-      });
-    }
-  }
-
-  // 2. Tentar pistas estruturadas
-  const runways: Runway[] = [];
-  const rwyBlocks = xml.match(/<pista[^>]*>([\s\S]*?)<\/pista>/gi) || [];
-  for (const block of rwyBlocks) {
-    const ident = getTag(block, 'identificacao');
-    const [le, he] = ident.split('/');
-    const lengthM = parseInt(getTag(block, 'comprimento')) || 0;
-    const widthM = parseInt(getTag(block, 'largura')) || 0;
-    runways.push({
-      le_ident: le || ident,
-      he_ident: he || '',
-      length_ft: Math.round(lengthM / 0.3048),
-      width_ft: Math.round(widthM / 0.3048),
-      surface: normalizeSurface(getTag(block, 'piso')),
-      closed: getTag(block, 'status')?.toUpperCase() === 'FECHADA',
-    });
-  }
-
-  // 3. Se estiver vazio (como SBIH), usar parser textual robusto
-  if (frequencies.length === 0 || runways.length === 0) {
-    const textData = parseRotaerText(xml);
-    if (frequencies.length === 0) frequencies.push(...textData.frequencies);
-    if (runways.length === 0) runways.push(...textData.runways);
-  }
-
-  return {
-    icao,
-    name,
-    frequencies,
-    runways,
-    source: 'aisweb',
-  };
-}
-
-function parseRotaerText(xml: string): { frequencies: Frequency[], runways: Runway[] } {
-  const frequencies: Frequency[] = [];
-  const runways: Runway[] = [];
-
-  // Extrair Frequências do bloco COM
-  // Padrão: RÁDIO [2] [5] 125.500 ou TWR 118.1
-  const comMatch = xml.match(/COM\s*-\s*([\s\S]*?)(?:\n\n|\n[A-Z\s]+-|$)/i);
-  if (comMatch) {
-    const comArea = comMatch[1];
-    const freqRe = /([A-ZÀ-Ú]{2,})\s+(?:\[\d+\]\s*)*(\d{3}\.\d+)/gi;
-    let m;
-    while ((m = freqRe.exec(comArea)) !== null) {
-      frequencies.push({
-        type: normalizeFreqType(m[1].toUpperCase()),
-        mhz:  m[2],
-        description: '',
-      });
-    }
-  }
-
-  // Extrair Pistas
-  // Padrão ROTAER: 06 - L8 [1] [2] , L12 - ( 1700x30 ASPH 26/F/B/X/T L14 , L15 ) - L12 - 24
-  const rwyRe = /(\d{2})[^()]*\(\s*(\d+)x(\d+)\s+([A-Z]{3,})[^)]*\)[^()]*(\d{2})/gi;
-  let rm;
-  while ((rm = rwyRe.exec(xml)) !== null) {
-    runways.push({
-      le_ident:  rm[1],
-      he_ident:  rm[5],
-      length_ft: Math.round(parseInt(rm[2]) / 0.3048),
-      width_ft:  Math.round(parseInt(rm[3]) / 0.3048),
-      surface:   normalizeSurface(rm[4]),
-      closed:    false, // No texto bruto é difícil saber sem contexto extra
-    });
-  }
-
-  return { frequencies, runways };
-}
-
-function normalizeFreqType(type: string): string {
-  const map: Record<string, string> = {
-    'TOWER': 'TWR', 'APPROACH': 'APP', 'GROUND': 'GND',
-    'DELIVERY': 'DEL', 'CTAF': 'UNICOM', 'RADIO': 'AFIS',
-    'INFO': 'AFIS',
-  };
-  return map[type] || type;
-}
-
-function normalizeSurface(s: string): string {
-  const map: Record<string, string> = {
-    'ASP': 'ASPH', 'ASPH': 'ASPH', 'ASPHALT': 'ASPH',
-    'CON': 'CONC', 'CONC': 'CONC', 'CONCRETE': 'CONC',
-    'GRS': 'GRASS', 'GRASS': 'GRASS', 'GRE': 'GRASS',
-    'GRV': 'GRAVEL', 'GRAVEL': 'GRAVEL',
-    'TURF': 'GRASS', 'DIRT': 'DIRT', 'EARTH': 'DIRT',
-  };
-  const upper = s.toUpperCase();
-  for (const [k, v] of Object.entries(map)) {
-    if (upper.includes(k)) return v;
-  }
-  return upper || 'N/A';
-}
+// ── Entry point ───────────────────────────────────────────
 
 export async function fetchAirportInfo(icao: string): Promise<AirportInfo | null> {
   const code = icao.toUpperCase();
-  
-  // 1. Se for BR, ROTAER é MANDATÓRIO (Oficial)
+
   if (isBrazilian(code)) {
-    const rotaer = await fetchFromAiswebRotaer(code);
-    // Se o ROTAER retornar QUALQUER frequência ou pista, já é melhor que o OurAirports desatualizado
-    if (rotaer && (rotaer.frequencies.length > 0 || rotaer.runways.length > 0)) {
-      return rotaer;
+    try {
+      const data = await fetchFromAISWEB(code);
+      if (data) return data;
+    } catch (e) {
+      console.warn(`AISWEB ROTAER failed for ${code}, trying Our Airports:`, e);
     }
   }
 
-  // 2. Internacional: OurAirports
-  const base = await fetchFromOurAirports(code);
-  
-  // 3. Fallback final para BR se OurAirports não tiver nada (raro, mas possível p/ helipontos)
-  if (isBrazilian(code) && !base) {
-    return await fetchFromAiswebRotaer(code);
-  }
-
-  return base;
+  // Fallback: Our Airports (internacional ou se AISWEB falhar)
+  return fetchFromOurAirports(code);
 }
