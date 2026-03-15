@@ -1,18 +1,61 @@
 /* src/components/briefing/AirportPanel.module.css */
 
-.msg { 
+.msg  {
   font-family: var(--mono); font-size: 0.85rem;
   display: flex; align-items: center; gap: 8px;
   color: var(--txtd); padding: 4px 0;
 }
 .warn { font-family: var(--mono); font-size: 0.85rem; color: var(--amb); }
 
+/* Header do aeródromo */
+.header { margin-bottom: 12px; }
+
 .airportName {
-  font-family: var(--ui); font-size: 0.85rem;
-  color: var(--txtd); letter-spacing: 1px;
-  margin-bottom: 10px; text-transform: uppercase;
+  display: block;
+  font-family: var(--ui); font-size: 0.90rem; font-weight: 600;
+  color: var(--txtb); letter-spacing: 1px;
+  text-transform: uppercase; margin-bottom: 2px;
+}
+.location {
+  display: block;
+  font-family: var(--mono); font-size: 0.72rem;
+  color: var(--txtd); margin-bottom: 4px;
+}
+.metaRow {
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+.meta {
+  font-family: var(--disp); font-size: 0.48rem;
+  letter-spacing: 1.5px; color: var(--txtd);
+  padding: 2px 6px; border: 1px solid var(--brd);
 }
 
+/* Horário ATS */
+.atsRow {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; margin-bottom: 12px;
+  border-left: 3px solid; border-radius: 2px;
+  font-family: var(--mono);
+}
+.atsOpen    { border-color: var(--grn); background: rgba(0,230,118,.06); }
+.atsWarn    { border-color: var(--amb); background: rgba(255,171,0,.08); }
+.atsClosed  { border-color: var(--red); background: rgba(255,61,61,.08); }
+
+.atsLabel {
+  font-family: var(--disp); font-size: 0.48rem;
+  letter-spacing: 2px; color: var(--txtd);
+}
+.atsVal {
+  font-size: 0.78rem; color: var(--txtb); flex: 1;
+}
+.atsClosed {
+  font-family: var(--disp); font-size: 0.48rem;
+  letter-spacing: 1.5px; color: var(--red);
+  padding: 2px 6px; border: 1px solid rgba(255,61,61,.35);
+  background: rgba(255,61,61,.1);
+}
+
+/* Seções */
 .section { margin-bottom: 14px; }
 .section:last-child { margin-bottom: 0; }
 
@@ -24,109 +67,91 @@
 }
 
 /* Frequências */
-.freqGrid {
-  display: flex; flex-direction: column; gap: 4px;
-}
+.freqGrid { display: flex; flex-direction: column; gap: 3px; }
 
 .freqRow {
   display: grid;
-  grid-template-columns: 64px 100px 1fr;
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: 60px 90px 1fr;
+  align-items: center; gap: 8px;
   padding: 5px 10px;
   background: rgba(0,0,0,.2);
   border: 1px solid var(--brd);
   font-family: var(--mono);
 }
-
 .freqType {
   font-family: var(--disp); font-size: 0.52rem;
   letter-spacing: 1.5px; color: var(--txtd);
 }
-
 .freqMhz {
   font-size: 0.95rem; color: var(--acc2);
   letter-spacing: 1px; font-weight: 600;
 }
-
 .freqDesc {
   font-size: 0.68rem; color: var(--txtd);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* Pistas */
-.rwyList {
-  display: flex; flex-direction: column; gap: 4px;
-}
+.rwyList { display: flex; flex-direction: column; gap: 3px; }
 
 .rwyRow {
   display: grid;
-  grid-template-columns: 80px 1fr 80px auto;
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: 72px 1fr 70px 60px auto;
+  align-items: center; gap: 8px;
   padding: 6px 10px;
   background: rgba(0,0,0,.2);
   border: 1px solid var(--brd);
   font-family: var(--mono);
 }
+.rwyRow.rwyClosed { border-color: rgba(255,61,61,.3); opacity: .7; }
 
 .rwyIdent {
   font-family: var(--disp); font-size: 0.75rem;
   letter-spacing: 2px; color: var(--txtb);
 }
+.rwyLen   { font-size: 0.78rem; color: var(--txt); }
+.rwyWidth { font-size: 0.68rem; color: var(--txtd); }
+.rwySurf  { font-size: 0.68rem; color: var(--txtd); text-align: right; }
 
-.rwyLen {
-  font-size: 0.80rem; color: var(--txt);
-}
-
-.rwySurf {
-  font-size: 0.72rem; color: var(--txtd);
-  text-align: right;
-}
-
-.rwyClosed {
-  font-family: var(--disp); font-size: 0.48rem;
+.rwyClosedBadge {
+  font-family: var(--disp); font-size: 0.44rem;
   letter-spacing: 1.5px; color: var(--red);
   background: rgba(255,61,61,.12);
   border: 1px solid rgba(255,61,61,.3);
-  padding: 2px 6px;
+  padding: 2px 5px;
 }
 
+/* Combustível */
+.fuelText {
+  font-family: var(--mono); font-size: 0.68rem;
+  color: var(--txt); line-height: 1.6;
+  background: rgba(0,0,0,.2);
+  border: 1px solid var(--brd);
+  padding: 6px 10px;
+}
+
+/* Observações */
+.remarksList {
+  list-style: none; display: flex; flex-direction: column; gap: 4px;
+}
+.remark {
+  font-family: var(--mono); font-size: 0.68rem;
+  color: var(--txt); line-height: 1.55;
+  background: rgba(0,0,0,.2);
+  border: 1px solid var(--brd);
+  border-left: 3px solid var(--brdg);
+  padding: 5px 10px;
+}
+
+/* Mobile */
 @media (max-width: 900px) {
   .freqMhz  { font-size: var(--fs-lg-m); }
-  .freqRow  { grid-template-columns: 56px 90px 1fr; gap: 6px; }
-  .rwyRow   { grid-template-columns: 72px 1fr 64px auto; }
+  .freqRow  { grid-template-columns: 52px 80px 1fr; }
+  .rwyRow   { grid-template-columns: 64px 1fr 60px auto; }
+  .rwyWidth { display: none; }
   .rwyIdent { font-size: var(--fs-sm-m); }
   .rwyLen   { font-size: var(--fs-sm-m); }
-  .sectionTitle { font-size: 0.62rem; }
+  .remark   { font-size: var(--fs-sm-m); }
+  .fuelText { font-size: var(--fs-sm-m); }
+  .sectionTitle { font-size: 0.60rem; }
 }
-
-.sourceBadge {
-  font-family: var(--disp);
-  font-size: 0.48rem;
-  padding: 2px 6px;
-  border-radius: 2px;
-  font-weight: 700;
-  text-transform: uppercase;
-  margin-left: 8px;
-  letter-spacing: 1px;
-}
-
-.aisweb {
-  background: rgba(0, 255, 100, 0.12);
-  color: #00ff64;
-  border: 1px solid rgba(0, 255, 100, 0.3);
-}
-
-.ourairports {
-  background: rgba(0, 200, 255, 0.12);
-  color: #00c8ff;
-  border: 1px solid rgba(0, 200, 255, 0.3);
-}
-
-.combined {
-  background: rgba(255, 200, 0, 0.12);
-  color: #ffc800;
-  border: 1px solid rgba(255, 200, 0, 0.3);
-}
-
