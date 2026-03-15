@@ -1,8 +1,8 @@
 // src/app/api/voice/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { parseVoiceIntent, detectLang } from '@/lib/voice/intent';
-import { fetchMetar, fetchTaf } from '@/lib/weather';
-import { fetchNotams, extractCriticalTexts } from '@/lib/notam';
+import { fetchLatestObs, fetchTaf }     from '@/lib/weather';
+import { fetchNotams, extractCriticalTexts, extractAtsHours, parseNotams } from '@/lib/notam';
 
 export async function POST(req: NextRequest) {
   const { text, lang: clientLang } = await req.json() as { text: string; lang?: string };
@@ -11,43 +11,60 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing text' }, { status: 400 });
   }
 
-  // Detect language — prefer client hint, then auto-detect from content
+  // Detectar idioma — preferência do cliente, depois auto-detect
   const langCode = clientLang?.startsWith('en') ? 'en' : detectLang(text);
-  const isEN = langCode === 'en';
+  const isEN     = langCode === 'en';
 
-  // Parse intent
+  // Parsear intenção
   const intent = parseVoiceIntent(text);
   if (!intent) {
     return NextResponse.json({
       reply: isEN
         ? "I didn't catch an ICAO code. Try: Dumont, conditions at SBSP."
         : "Não identifiquei um aeródromo. Diga: Dumont, condições de SBSP.",
-      icao: null,
-      type: 'error',
-      lang: langCode,
+      icao: null, type: 'error', lang: langCode,
     });
   }
 
   const { dep, arr } = intent;
 
-  // Fetch all data in parallel
-  const [metarDep, tafDep, notamsDep, metarArr, tafArr, notamsArr] = await Promise.all([
-    fetchMetar(dep).catch(() => null),
+  // Buscar todos os dados em paralelo
+  const [
+    obsDep, tafDep, notamsRawDep,
+    obsArr, tafArr, notamsRawArr,
+  ] = await Promise.all([
+    fetchLatestObs(dep).catch(() => null),
     fetchTaf(dep).catch(() => null),
     fetchNotams(dep).catch(() => null),
-    arr ? fetchMetar(arr).catch(() => null) : Promise.resolve(null),
-    arr ? fetchTaf(arr).catch(() => null)   : Promise.resolve(null),
-    arr ? fetchNotams(arr).catch(() => null) : Promise.resolve(null),
+    arr ? fetchLatestObs(arr).catch(() => null)   : Promise.resolve(null),
+    arr ? fetchTaf(arr).catch(() => null)          : Promise.resolve(null),
+    arr ? fetchNotams(arr).catch(() => null)       : Promise.resolve(null),
   ]);
 
-  const critDep = extractCriticalTexts(notamsDep);
-  const critArr = arr ? extractCriticalTexts(notamsArr) : [];
+  const notamsDep  = parseNotams(notamsRawDep);
+  const notamsArr  = parseNotams(notamsRawArr);
+  const critDep    = extractCriticalTexts(notamsRawDep);
+  const critArr    = extractCriticalTexts(notamsRawArr);
+  const atsDep     = extractAtsHours(notamsDep);
+  const atsArr     = arr ? extractAtsHours(notamsArr) : null;
 
-  // Build prompt for Claude
+  // Construir prompt
   const systemPrompt = buildSystemPrompt(isEN);
-  const userContent   = buildUserContent({ dep, arr, metarDep, tafDep, critDep, metarArr, tafArr, critArr });
+  const userContent  = buildUserContent({
+    dep, arr,
+    metarDep: obsDep?.raw    ?? null,
+    obsTypeDep: obsDep?.type ?? 'METAR',
+    tafDep,
+    critDep,
+    atsDep,
+    metarArr: obsArr?.raw    ?? null,
+    obsTypeArr: obsArr?.type ?? 'METAR',
+    tafArr,
+    critArr,
+    atsArr,
+  });
 
-  // Call Claude
+  // Chamar Claude
   let reply = '';
   try {
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -59,7 +76,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
+        max_tokens: 400,
         system: systemPrompt,
         messages: [{ role: 'user', content: userContent }],
       }),
@@ -72,44 +89,78 @@ export async function POST(req: NextRequest) {
       : `${dep}, dados momentaneamente indisponíveis.`;
   }
 
-  return NextResponse.json({ reply, icao: dep, icao_arr: arr, type: intent.type, lang: langCode });
+  return NextResponse.json({
+    reply,
+    icao:     dep,
+    icao_arr: arr ?? null,
+    type:     intent.type,
+    lang:     langCode,
+  });
 }
 
 // ── PROMPT BUILDERS ──────────────────────────────────────
 
 function buildSystemPrompt(isEN: boolean): string {
   if (isEN) return `You are Dumont, a voice aeronautical briefing assistant.
+LANGUAGE: Always respond in English.
 RULES:
 - CONCISE. Max 4 sentences per aerodrome.
 - State: flight category (VMC/MVFR/IFR/LIFR), wind if notable, visibility if restricted, ceiling if low.
 - Mention TAF ONLY if significant deterioration expected within 2 hours.
 - Mention NOTAMs ONLY if runway closed, ILS/VOR inop, aerodrome closed, or HAZARD.
+- ATS hours: warn clearly if aerodrome is currently closed or closing within 60 minutes. Say "request ATS extension" if closed.
 - If everything is normal: state category and wind only.
-- Do NOT mention pressure, temperature, dewpoint, or non-impacting high clouds.
-- Speak naturally. No bullet lists.
+- Do NOT mention pressure, temperature, dewpoint, or non-impacting clouds.
+- Speak naturally. No bullet lists. No markdown.
 - End with "Verify with official sources." ONLY if there is a notable condition.`;
 
   return `Você é Dumont, assistente de briefing aeronáutico por voz.
+IDIOMA: Responda SEMPRE em português do Brasil.
 REGRAS:
 - CONCISO. Máximo 4 frases por aeródromo.
 - Informe: categoria de voo (VMC/MVFR/IFR/LIFR), vento se relevante, visibilidade se restrita, teto se baixo.
-- Cite TAF APENAS se há deterioração significativa prevista nas próximas 2 horas.
-- Cite NOTAMs APENAS se há pista fechada, ILS/VOR inoperante, AD fechado ou HAZARD.
+- Cite TAF APENAS se há deterioração significativa nas próximas 2 horas.
+- Cite NOTAMs APENAS se pista fechada, ILS/VOR inoperante, AD fechado ou HAZARD.
+- Horário ATS: avise claramente se o AD está fechado agora ou fecha em menos de 60 minutos. Se fechado, diga "solicite extensão ao órgão ATS".
 - Se tudo normal: diga apenas categoria e vento.
-- NÃO cite pressão, temperatura, ponto de orvalho ou nuvens altas sem impacto.
-- Fale naturalmente. Sem listas.
-- Encerre com "Consulte fontes oficiais." APENAS se houver condição de atenção.`;
+- NÃO cite QNH, temperatura, ponto de orvalho ou nuvens sem impacto.
+- Fale naturalmente. Sem listas. Sem markdown.
+- Encerre com "Consulte as fontes oficiais." APENAS se houver condição de atenção.`;
+}
+
+function fmtAts(ats: ReturnType<typeof extractAtsHours>): string {
+  if (!ats) return 'desconhecido';
+  if (ats.isH24) return 'H24';
+  const open  = `${String(Math.floor(ats.open  / 60)).padStart(2,'0')}${String(ats.open  % 60).padStart(2,'0')}`;
+  const close = `${String(Math.floor(ats.close / 60)).padStart(2,'0')}${String(ats.close % 60).padStart(2,'0')}`;
+  const status = !ats.isOpen
+    ? `FECHADO AGORA (abre ${open}Z)`
+    : ats.closingSoon
+    ? `FECHA EM BREVE às ${close}Z`
+    : `aberto ${open}Z-${close}Z`;
+  return status;
 }
 
 function buildUserContent(d: {
   dep: string; arr: string | null;
-  metarDep: string | null; tafDep: string | null; critDep: string[];
-  metarArr: string | null; tafArr: string | null; critArr: string[];
+  metarDep: string | null; obsTypeDep: string; tafDep: string | null;
+  critDep: string[]; atsDep: ReturnType<typeof extractAtsHours>;
+  metarArr: string | null; obsTypeArr: string; tafArr: string | null;
+  critArr: string[]; atsArr: ReturnType<typeof extractAtsHours>;
 }): string {
-  if (d.arr) {
-    return `Route ${d.dep}→${d.arr}.
-${d.dep}: METAR=${d.metarDep || 'N/A'} | TAF=${d.tafDep?.substring(0, 300) || 'N/A'} | Critical NOTAMs=${d.critDep.join(' / ') || 'none'}
-${d.arr}: METAR=${d.metarArr || 'N/A'} | TAF=${d.tafArr?.substring(0, 300) || 'N/A'} | Critical NOTAMs=${d.critArr.join(' / ') || 'none'}`;
-  }
-  return `${d.dep}: METAR=${d.metarDep || 'N/A'} | TAF=${d.tafDep?.substring(0, 300) || 'N/A'} | Critical NOTAMs=${d.critDep.join(' / ') || 'none'}`;
+  const depBlock = `${d.dep}:
+  ${d.obsTypeDep}: ${d.metarDep || 'N/A'}
+  TAF: ${d.tafDep?.substring(0, 300) || 'N/A'}
+  NOTAMs críticos: ${d.critDep.join(' / ') || 'nenhum'}
+  Serviço ATS: ${fmtAts(d.atsDep)}`;
+
+  if (!d.arr) return depBlock;
+
+  const arrBlock = `${d.arr}:
+  ${d.obsTypeArr}: ${d.metarArr || 'N/A'}
+  TAF: ${d.tafArr?.substring(0, 300) || 'N/A'}
+  NOTAMs críticos: ${d.critArr.join(' / ') || 'nenhum'}
+  Serviço ATS: ${fmtAts(d.atsArr)}`;
+
+  return `Rota ${d.dep}→${d.arr}.\n${depBlock}\n\n${arrBlock}`;
 }
