@@ -163,7 +163,7 @@ async function fetchFromAiswebRotaer(icao: string): Promise<AirportInfo | null> 
     const xml = data.raw || '';
     if (!xml) return null;
 
-    return parseRotaerXML(icao, xml);
+    return parseRotaerXML(icao.toUpperCase(), xml);
   } catch (e) {
     console.error(`[ROTAER] Error for ${icao}:`, e);
     return null;
@@ -178,7 +178,7 @@ function parseRotaerXML(icao: string, xml: string): AirportInfo {
 
   const name = getTag(xml, 'nome') || getTag(xml, 'origem') || icao;
   
-  // Frequências
+  // 1. Tentar frequências estruturadas
   const frequencies: Frequency[] = [];
   const freqBlocks = xml.match(/<frequencia[^>]*>([\s\S]*?)<\/frequencia>/gi) || [];
   for (const block of freqBlocks) {
@@ -193,11 +193,11 @@ function parseRotaerXML(icao: string, xml: string): AirportInfo {
     }
   }
 
-  // Pistas
+  // 2. Tentar pistas estruturadas
   const runways: Runway[] = [];
   const rwyBlocks = xml.match(/<pista[^>]*>([\s\S]*?)<\/pista>/gi) || [];
   for (const block of rwyBlocks) {
-    const ident = getTag(block, 'identificacao'); // ex: "10/28"
+    const ident = getTag(block, 'identificacao');
     const [le, he] = ident.split('/');
     const lengthM = parseInt(getTag(block, 'comprimento')) || 0;
     const widthM = parseInt(getTag(block, 'largura')) || 0;
@@ -211,6 +211,13 @@ function parseRotaerXML(icao: string, xml: string): AirportInfo {
     });
   }
 
+  // 3. Se estiver vazio (como SBIH), usar parser textual robusto
+  if (frequencies.length === 0 || runways.length === 0) {
+    const textData = parseRotaerText(xml);
+    if (frequencies.length === 0) frequencies.push(...textData.frequencies);
+    if (runways.length === 0) runways.push(...textData.runways);
+  }
+
   return {
     icao,
     name,
@@ -218,6 +225,44 @@ function parseRotaerXML(icao: string, xml: string): AirportInfo {
     runways,
     source: 'aisweb',
   };
+}
+
+function parseRotaerText(xml: string): { frequencies: Frequency[], runways: Runway[] } {
+  const frequencies: Frequency[] = [];
+  const runways: Runway[] = [];
+
+  // Extrair Frequências do bloco COM
+  // Padrão: RÁDIO [2] [5] 125.500 ou TWR 118.1
+  const comMatch = xml.match(/COM\s*-\s*([\s\S]*?)(?:\n\n|\n[A-Z\s]+-|$)/i);
+  if (comMatch) {
+    const comArea = comMatch[1];
+    const freqRe = /([A-ZÀ-Ú]{2,})\s+(?:\[\d+\]\s*)*(\d{3}\.\d+)/gi;
+    let m;
+    while ((m = freqRe.exec(comArea)) !== null) {
+      frequencies.push({
+        type: normalizeFreqType(m[1].toUpperCase()),
+        mhz:  m[2],
+        description: '',
+      });
+    }
+  }
+
+  // Extrair Pistas
+  // Padrão ROTAER: 06 - L8 [1] [2] , L12 - ( 1700x30 ASPH 26/F/B/X/T L14 , L15 ) - L12 - 24
+  const rwyRe = /(\d{2})[^()]*\(\s*(\d+)x(\d+)\s+([A-Z]{3,})[^)]*\)[^()]*(\d{2})/gi;
+  let rm;
+  while ((rm = rwyRe.exec(xml)) !== null) {
+    runways.push({
+      le_ident:  rm[1],
+      he_ident:  rm[5],
+      length_ft: Math.round(parseInt(rm[2]) / 0.3048),
+      width_ft:  Math.round(parseInt(rm[3]) / 0.3048),
+      surface:   normalizeSurface(rm[4]),
+      closed:    false, // No texto bruto é difícil saber sem contexto extra
+    });
+  }
+
+  return { frequencies, runways };
 }
 
 function normalizeFreqType(type: string): string {
@@ -247,18 +292,19 @@ function normalizeSurface(s: string): string {
 export async function fetchAirportInfo(icao: string): Promise<AirportInfo | null> {
   const code = icao.toUpperCase();
   
-  // 1. Se for BR, tentar ROTAER (Oficial) primeiro
+  // 1. Se for BR, ROTAER é MANDATÓRIO (Oficial)
   if (isBrazilian(code)) {
     const rotaer = await fetchFromAiswebRotaer(code);
-    if (rotaer && rotaer.frequencies.length > 0) {
+    // Se o ROTAER retornar QUALQUER frequência ou pista, já é melhor que o OurAirports desatualizado
+    if (rotaer && (rotaer.frequencies.length > 0 || rotaer.runways.length > 0)) {
       return rotaer;
     }
   }
 
-  // 2. Fallback ou Internacional: OurAirports
+  // 2. Internacional: OurAirports
   const base = await fetchFromOurAirports(code);
   
-  // 3. Se OurAirports falhar ou for BR sem ROTAER completo, mesclar o que tiver
+  // 3. Fallback final para BR se OurAirports não tiver nada (raro, mas possível p/ helipontos)
   if (isBrazilian(code) && !base) {
     return await fetchFromAiswebRotaer(code);
   }
