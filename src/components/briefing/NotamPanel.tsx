@@ -4,32 +4,25 @@ import { useState, useEffect } from 'react';
 import { Panel }       from '@/components/ui/Panel';
 import { parseNotams, extractAtsHours } from '@/lib/notam';
 import type { ParsedNotamEx, NotamSeverity, AtsHours } from '@/types';
+import type { BriefingMode } from '@/hooks/useBriefingMode';
 import styles from './NotamPanel.module.css';
 
 interface NotamPanelProps {
   icao: string;
+  mode?: BriefingMode;
   showAiSummary?: boolean;
 }
 
-const SEV_LABEL: Record<NotamSeverity, string> = {
-  crit: 'CRIT', warn: 'WARN', info: 'INFO',
-};
+const SEV_LABEL: Record<NotamSeverity, string> = { crit: 'CRIT', warn: 'WARN', info: 'INFO' };
 
 function fmtMin(min: number): string {
   return `${String(Math.floor(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}Z`;
 }
 
-// ── Caixa de Horário ATS ──────────────────────────────
 function AtsBox({ ats }: { ats: AtsHours }) {
-  const cls  = ats.isH24 ? styles.atsH24
-    : !ats.isOpen        ? styles.atsClosed
-    : ats.closingSoon    ? styles.atsWarn
-    : styles.atsOpen;
-  const icon = ats.isH24 ? '🟢'
-    : !ats.isOpen        ? '🔴'
-    : ats.closingSoon    ? '🟡' : '🟢';
+  const cls  = ats.isH24 ? styles.atsH24 : !ats.isOpen ? styles.atsClosed : ats.closingSoon ? styles.atsWarn : styles.atsOpen;
+  const icon = ats.isH24 ? '🟢' : !ats.isOpen ? '🔴' : ats.closingSoon ? '🟡' : '🟢';
   const nowMin = new Date().getUTCHours() * 60 + new Date().getUTCMinutes();
-
   return (
     <div className={[styles.atsBox, cls].join(' ')}>
       <span className={styles.atsIcon}>{icon}</span>
@@ -39,15 +32,11 @@ function AtsBox({ ats }: { ats: AtsHours }) {
           <span className={styles.atsStatus}>H24 — Operação contínua</span>
         ) : !ats.isOpen ? (
           <span className={styles.atsStatus}>
-            FECHADO — Abre {ats.opensIn !== undefined
-              ? `em ${ats.opensIn}min`
-              : `às ${fmtMin(ats.open)}`}
+            FECHADO — Abre {ats.opensIn !== undefined ? `em ${ats.opensIn}min` : `às ${fmtMin(ats.open)}`}
             {' '}· Solicite extensão ao órgão ATS
           </span>
         ) : ats.closingSoon ? (
-          <span className={styles.atsStatus}>
-            Encerra às {fmtMin(ats.close)} · {ats.close - nowMin}min restantes
-          </span>
+          <span className={styles.atsStatus}>Encerra às {fmtMin(ats.close)} · {ats.close - nowMin}min restantes</span>
         ) : (
           <span className={styles.atsStatus}>{fmtMin(ats.open)} – {fmtMin(ats.close)}</span>
         )}
@@ -56,7 +45,6 @@ function AtsBox({ ats }: { ats: AtsHours }) {
   );
 }
 
-// ── Caixa de Schedule do NOTAM ────────────────────────
 function ScheduleBox({ n }: { n: ParsedNotamEx }) {
   const s = n.schedule;
   if (!s) return null;
@@ -64,22 +52,18 @@ function ScheduleBox({ n }: { n: ParsedNotamEx }) {
     <div className={[styles.schedBox, s.closedNow ? styles.schedClosed : styles.schedOpen].join(' ')}>
       <div className={styles.schedTop}>
         <span className={styles.schedIcon}>{s.closedNow ? '🔴' : '🟢'}</span>
-        <span className={styles.schedStatus}>
-          {s.closedNow ? 'FECHADO AGORA' : 'ABERTO AGORA'}
-        </span>
+        <span className={styles.schedStatus}>{s.closedNow ? 'FECHADO AGORA' : 'ABERTO AGORA'}</span>
         <span className={styles.schedNext}>{s.nextChange}</span>
       </div>
       <div className={styles.schedDetail}>
-        <span className={styles.schedPeriod}>
-          Fechado: <strong>{s.closedPeriod}</strong>
-        </span>
+        <span className={styles.schedPeriod}>Fechado: <strong>{s.closedPeriod}</strong></span>
         <span className={styles.schedOpenLabel}>{s.openPeriod}</span>
       </div>
     </div>
   );
 }
 
-export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
+export function NotamPanel({ icao, mode = 'pilot', showAiSummary = true }: NotamPanelProps) {
   const [notams,   setNotams]   = useState<ParsedNotamEx[]>([]);
   const [aiText,   setAiText]   = useState<string | null>(null);
   const [loading,  setLoading]  = useState(true);
@@ -101,16 +85,10 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
             body: JSON.stringify({
               prompt: `Você é um briefer de aviação. Resuma em 2-3 frases curtas e operacionais os NOTAMs críticos abaixo para ${icao}. Foque apenas no que afeta segurança ou operações:\n\n${critTexts}`
             }),
-          })
-            .then(r => r.json())
-            .then(d => setAiText(d.text || null))
-            .catch(() => null);
+          }).then(r => r.json()).then(d => setAiText(d.text || null)).catch(() => null);
         }
       })
-      .catch(err => {
-        console.error('NOTAM Error:', err);
-        setError(err instanceof Error ? err.message : 'Falha ao buscar NOTAMs');
-      })
+      .catch(err => setError(err instanceof Error ? err.message : 'Falha ao buscar NOTAMs'))
       .finally(() => setLoading(false));
   }, [icao, showAiSummary]);
 
@@ -118,11 +96,12 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
   const hasWarn = notams.some(n => n.sev === 'warn');
   const ats     = extractAtsHours(notams);
 
-  const panelStatus = loading ? 'loading'
-    : error   ? 'crit'
-    : hasCrit ? 'crit'
-    : hasWarn ? 'warn'
-    : 'ok';
+  const panelStatus = loading ? 'loading' : error ? 'crit' : hasCrit ? 'crit' : hasWarn ? 'warn' : 'ok';
+
+  // No modo piloto, mostrar só críticos + ATS
+  const visibleNotams = mode === 'pilot'
+    ? notams.filter(n => n.sev === 'crit')
+    : notams;
 
   return (
     <Panel title="NOTAMs" subtitle={icao} status={panelStatus as 'ok' | 'warn' | 'crit' | 'loading'}>
@@ -135,6 +114,13 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
         <div className={styles.clear}>✓ Sem NOTAMs relevantes</div>
       )}
 
+      {/* Modo piloto: se não há críticos mas há warns, mostrar aviso resumido */}
+      {mode === 'pilot' && !loading && !error && notams.length > 0 && !hasCrit && hasWarn && (
+        <div className={styles.pilotWarn}>
+          ⚠ {notams.filter(n => n.sev === 'warn').length} NOTAM(s) de atenção — use modo completo para ver
+        </div>
+      )}
+
       {aiText && (
         <div className={styles.aiBox}>
           <span className={styles.aiLabel}>DUMONT IA</span>
@@ -143,25 +129,16 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
       )}
 
       <ul className={styles.list}>
-        {notams.map(n => {
+        {visibleNotams.map(n => {
           const isOpen = expanded === n.id;
           return (
             <li key={n.id} className={[styles.item, styles[n.sev]].join(' ')}>
-
-              {/* Header clicável — mostra número + categoria + preview */}
-              <button
-                className={styles.itemHead}
-                onClick={() => setExpanded(isOpen ? null : n.id)}
-              >
-                <span className={[styles.sevBadge, styles[`sev_${n.sev}`]].join(' ')}>
-                  {SEV_LABEL[n.sev]}
-                </span>
+              <button className={styles.itemHead} onClick={() => setExpanded(isOpen ? null : n.id)}>
+                <span className={[styles.sevBadge, styles[`sev_${n.sev}`]].join(' ')}>{SEV_LABEL[n.sev]}</span>
                 <span className={styles.cat}>{n.cat.l}</span>
-                {/* Número do NOTAM no header — ex: G0576/26 */}
                 {n.notamNum && n.notamNum !== '?' && (
                   <span className={styles.notamNumInline}>{n.notamNum}</span>
                 )}
-                {/* Preview do texto — apenas quando fechado */}
                 {!isOpen && (
                   <span className={styles.preview}>
                     {n.text.substring(0, 60)}{n.text.length > 60 ? '…' : ''}
@@ -169,17 +146,10 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
                 )}
                 <span className={styles.arrow}>{isOpen ? '▲' : '▼'}</span>
               </button>
-
-              {/* Conteúdo expandido */}
               {isOpen && (
                 <div className={styles.full}>
-                  {/* Texto completo */}
                   <pre className={styles.pre}>{n.text}</pre>
-
-                  {/* Schedule operacional */}
                   <ScheduleBox n={n} />
-
-                  {/* Validade */}
                   {(n.validFrom || n.validTo) && (
                     <div className={styles.validity}>
                       {n.validFrom && <span>DE: {n.validFrom}</span>}

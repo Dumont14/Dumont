@@ -6,15 +6,19 @@ import { Badge }       from '@/components/ui/Badge';
 import { decodeMetar, getFlightCategory, highlightMetar } from '@/lib/weather/metar';
 import { useSunTimes } from '@/hooks/useSunTimes';
 import type { FlightCategory } from '@/types';
+import type { BriefingMode } from '@/hooks/useBriefingMode';
 import styles from './MetarPanel.module.css';
 
-interface MetarPanelProps { icao: string; }
+interface MetarPanelProps {
+  icao: string;
+  mode?: BriefingMode;
+}
 
 const CAT_VARIANT: Record<FlightCategory, 'vmc' | 'mvfr' | 'ifr' | 'lifr'> = {
   VMC: 'vmc', MVFR: 'mvfr', IFR: 'ifr', LIFR: 'lifr',
 };
 
-export function MetarPanel({ icao }: MetarPanelProps) {
+export function MetarPanel({ icao, mode = 'pilot' }: MetarPanelProps) {
   const [raw,     setRaw]     = useState<string | null>(null);
   const [obsType, setObsType] = useState<'METAR' | 'SPECI'>('METAR');
   const [error,   setError]   = useState<string | null>(null);
@@ -37,7 +41,6 @@ export function MetarPanel({ icao }: MetarPanelProps) {
   const decoded = raw ? decodeMetar(raw) : null;
   const cat     = decoded ? getFlightCategory(decoded) : null;
 
-  // ── Badge row: [SPECI?] [VMC/IFR/…] [↑sunrise ↓sunset]
   const badgeEl = (
     <div className={styles.badgeRow}>
       {obsType === 'SPECI' && (
@@ -59,53 +62,94 @@ export function MetarPanel({ icao }: MetarPanelProps) {
     ? ({ VMC: 'ok', MVFR: 'warn', IFR: 'crit', LIFR: 'crit' } as const)[cat]
     : 'empty';
 
-  // Título: "METAR / SPECI" — sempre mostra os dois separados por /
-  const title = 'METAR / SPECI';
-
   return (
     <Panel
-      title={title}
+      title="METAR / SPECI"
       subtitle={icao}
       status={panelStatus as 'ok' | 'warn' | 'crit' | 'loading' | 'empty'}
       badge={badgeEl}
     >
       {loading && <div className={styles.loading}><span className="spin" /> Carregando…</div>}
       {error   && <div className={styles.error}>⚠ {error}</div>}
+
       {raw && decoded && (
         <>
-          <pre
-            className={styles.raw}
-            dangerouslySetInnerHTML={{ __html: highlightMetar(raw) }}
-          />
-          <dl className={styles.grid}>
-            {decoded.wdir && (
-              <>
-                <dt>Vento</dt>
-                <dd className={styles.val}>
+          {/* MODO PILOTO — só o essencial */}
+          {mode === 'pilot' && (
+            <div className={styles.pilotRow}>
+              {decoded.wdir && (
+                <span className={styles.pilotItem}>
+                  <span className={styles.pilotLabel}>VENTO</span>
                   {decoded.wdir} {decoded.wspdS}
                   {decoded.wgust && <span className={styles.gust}> {decoded.wgust}</span>}
+                </span>
+              )}
+              <span className={[
+                styles.pilotItem,
+                decoded.cavok ? styles.ok : parseInt(decoded.vis || '0') < 1500 ? styles.crit : styles.warn
+              ].join(' ')}>
+                <span className={styles.pilotLabel}>VIS</span>
+                {decoded.cavok ? 'CAVOK' : `${decoded.vis}m`}
+              </span>
+              <span className={[
+                styles.pilotItem,
+                decoded.ceil && decoded.ceil < 500 ? styles.crit
+                : decoded.ceil && decoded.ceil < 1500 ? styles.warn : styles.ok
+              ].join(' ')}>
+                <span className={styles.pilotLabel}>TETO</span>
+                {decoded.cavok ? 'CAVOK' : decoded.ceil != null ? `${decoded.ceil}ft` : 'CLEAR'}
+              </span>
+              {decoded.wx && (
+                <span className={[styles.pilotItem, styles.wx].join(' ')}>
+                  <span className={styles.pilotLabel}>TEMPO</span>
+                  {decoded.wx}
+                </span>
+              )}
+              <span className={styles.pilotItem}>
+                <span className={styles.pilotLabel}>QNH</span>
+                {decoded.qnh || '—'}
+              </span>
+            </div>
+          )}
+
+          {/* MODO COMPLETO — raw + grid */}
+          {mode === 'full' && (
+            <>
+              <pre
+                className={styles.raw}
+                dangerouslySetInnerHTML={{ __html: highlightMetar(raw) }}
+              />
+              <dl className={styles.grid}>
+                {decoded.wdir && (
+                  <>
+                    <dt>Vento</dt>
+                    <dd className={styles.val}>
+                      {decoded.wdir} {decoded.wspdS}
+                      {decoded.wgust && <span className={styles.gust}> {decoded.wgust}</span>}
+                    </dd>
+                  </>
+                )}
+                <dt>Visibilidade</dt>
+                <dd className={decoded.cavok ? styles.ok : parseInt(decoded.vis || '0') < 1500 ? styles.crit : styles.warn}>
+                  {decoded.cavok ? 'CAVOK' : `${decoded.vis} m`}
                 </dd>
-              </>
-            )}
-            <dt>Visibilidade</dt>
-            <dd className={decoded.cavok ? styles.ok : parseInt(decoded.vis || '0') < 1500 ? styles.crit : styles.warn}>
-              {decoded.cavok ? 'CAVOK' : `${decoded.vis} m`}
-            </dd>
-            <dt>Teto</dt>
-            <dd className={decoded.ceil && decoded.ceil < 500 ? styles.crit : decoded.ceil && decoded.ceil < 1500 ? styles.warn : styles.ok}>
-              {decoded.cavok ? 'CAVOK' : decoded.ceil != null ? `${decoded.ceil} ft` : 'CLEAR'}
-            </dd>
-            {decoded.wx && (
-              <>
-                <dt>Tempo</dt>
-                <dd className={styles.wx}>{decoded.wx}</dd>
-              </>
-            )}
-            <dt>Temp / Or</dt>
-            <dd className={styles.val}>{decoded.temp} / {decoded.dew}</dd>
-            <dt>QNH</dt>
-            <dd className={styles.val}>{decoded.qnh || '—'}</dd>
-          </dl>
+                <dt>Teto</dt>
+                <dd className={decoded.ceil && decoded.ceil < 500 ? styles.crit : decoded.ceil && decoded.ceil < 1500 ? styles.warn : styles.ok}>
+                  {decoded.cavok ? 'CAVOK' : decoded.ceil != null ? `${decoded.ceil} ft` : 'CLEAR'}
+                </dd>
+                {decoded.wx && (
+                  <>
+                    <dt>Tempo</dt>
+                    <dd className={styles.wx}>{decoded.wx}</dd>
+                  </>
+                )}
+                <dt>Temp / Or</dt>
+                <dd className={styles.val}>{decoded.temp} / {decoded.dew}</dd>
+                <dt>QNH</dt>
+                <dd className={styles.val}>{decoded.qnh || '—'}</dd>
+              </dl>
+            </>
+          )}
         </>
       )}
     </Panel>
