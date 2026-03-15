@@ -92,16 +92,32 @@ export interface Frequency {
 }
 
 export interface Runway {
-  le_ident: string; he_ident: string;
-  length_ft: number; width_ft: number;
-  surface: string; closed: boolean;
+  ident:    string;
+  length_m: number;
+  width_m:  number;
+  surface:  string;
+  closed:   boolean;
+  tora_le?: number | null;
+  tora_he?: number | null;
 }
 
 export interface AirportInfo {
-  icao: string; name: string;
+  icao:        string;
+  name:        string;
+  city:        string;
+  uf:          string;
+  lat:         string;
+  lng:         string;
+  alt_ft:      string;
+  utc:         string;
+  type_opr:    string;
+  type_util:   string;
+  ats_hours:   string;
   frequencies: Frequency[];
-  runways: Runway[];
-  source: 'ourairports' | 'aisweb' | 'combined';
+  runways:     Runway[];
+  remarks:     string[];
+  fuel:        string;
+  source:      'aisweb' | 'ourairports';
 }
 
 // ── Voice / Dumont ──────────────────────────────────────
