@@ -1,80 +1,171 @@
 /* src/components/briefing/NotamPanel.module.css */
+
 .msg, .clear {
   font-family: var(--mono);
   font-size: .72rem;
-  color: var(--txtd);
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 0;
+  color: var(--txtd);
 }
 .clear { color: var(--grn); }
-.error { font-family: var(--mono); font-size: .72rem; color: var(--red); }
+.error {
+  font-family: var(--mono);
+  font-size: .72rem;
+  color: var(--red);
+  padding: 4px 0;
+}
 
+/* ── Horário ATS ─────────────────────────────────────── */
+.atsBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 2px;
+  border-left: 3px solid;
+  margin-bottom: 10px;
+  font-family: var(--mono);
+}
+.atsOpen    { border-color: var(--grn);  background: rgba(0,230,118,.06); }
+.atsH24     { border-color: var(--grn);  background: rgba(0,230,118,.04); }
+.atsWarn    { border-color: var(--amb);  background: rgba(255,171,0,.08); }
+.atsClosed  { border-color: var(--red);  background: rgba(255,61,61,.08); }
+
+.atsIcon { font-size: .85rem; flex-shrink: 0; margin-top: 1px; }
+
+.atsInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.atsLabel {
+  font-family: var(--disp);
+  font-size: .42rem;
+  letter-spacing: 2px;
+  color: var(--txtd);
+}
+.atsStatus {
+  font-size: .68rem;
+  color: var(--txtb);
+  line-height: 1.4;
+}
+.atsClosed  .atsStatus { color: var(--red); }
+.atsWarn    .atsStatus { color: var(--amb); }
+
+/* ── AI Summary ──────────────────────────────────────── */
 .aiBox {
   background: rgba(0,170,255,.06);
   border: 1px solid rgba(0,170,255,.2);
-  border-left: 3px solid var(--acc2);
+  border-left: 3px solid var(--acc);
   padding: 8px 12px;
   margin-bottom: 10px;
-  font-family: var(--ui);
-  font-size: .82rem;
-  color: var(--txtb);
-  line-height: 1.6;
 }
 .aiLabel {
   font-family: var(--disp);
-  font-size: .38rem;
+  font-size: .4rem;
   letter-spacing: 2px;
   color: var(--acc);
   display: block;
   margin-bottom: 4px;
 }
+.aiBox p {
+  font-family: var(--mono);
+  font-size: .68rem;
+  color: var(--txt);
+  line-height: 1.6;
+}
 
-.list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
-.item { border: 1px solid var(--brd); }
-.item.crit { border-color: rgba(255,61,61,.4); }
-.item.warn { border-color: rgba(255,171,0,.3); }
+/* ── Lista ───────────────────────────────────────────── */
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item {
+  border: 1px solid var(--brd);
+  background: rgba(0,0,0,.2);
+}
+.item.crit { border-color: rgba(255,61,61,.35);  }
+.item.warn { border-color: rgba(255,171,0,.3);   }
+.item.info { border-color: var(--brd);           }
 
 .itemHead {
   width: 100%;
-  background: none;
-  border: none;
-  padding: 7px 10px;
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 7px 10px;
+  background: none;
+  border: none;
   cursor: pointer;
   text-align: left;
-  color: var(--txt);
 }
 .itemHead:hover { background: rgba(255,255,255,.03); }
 
-.sev  { font-size: .7rem; flex-shrink: 0; }
-.cat  { font-family: var(--disp); font-size: .42rem; letter-spacing: 2px; color: var(--txtd); flex-shrink: 0; width: 40px; }
-.text { font-family: var(--mono); font-size: .62rem; flex: 1; color: var(--txtb); line-height: 1.4; }
-.arrow { font-size: .55rem; color: var(--txtd); flex-shrink: 0; }
+.sevBadge {
+  font-family: var(--disp);
+  font-size: .38rem;
+  letter-spacing: 1.5px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+.sev_crit { background: rgba(255,61,61,.15);  color: var(--red); border: 1px solid rgba(255,61,61,.4); }
+.sev_warn { background: rgba(255,171,0,.12);  color: var(--amb); border: 1px solid rgba(255,171,0,.35); }
+.sev_info { background: rgba(0,170,255,.08);  color: var(--acc); border: 1px solid rgba(0,170,255,.25); }
 
-.crit .text { color: #ffaaaa; }
-.warn .text { color: #ffe082; }
+.cat {
+  font-family: var(--disp);
+  font-size: .44rem;
+  letter-spacing: 1.5px;
+  color: var(--txtd);
+  flex-shrink: 0;
+  min-width: 52px;
+}
 
+.preview {
+  font-family: var(--mono);
+  font-size: .62rem;
+  color: var(--txt);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.item.crit .preview { color: #ffaaaa; }
+.item.warn .preview { color: #ffe0a0; }
+
+.arrow {
+  font-size: .5rem;
+  color: var(--txtd);
+  flex-shrink: 0;
+}
+
+/* ── Expandido ───────────────────────────────────────── */
 .full {
-  padding: 8px 10px;
+  padding: 0 10px 10px;
   border-top: 1px solid var(--brd);
-  background: rgba(0,0,0,.2);
 }
 .pre {
   font-family: var(--mono);
-  font-size: .62rem;
+  font-size: .63rem;
+  color: var(--txtb);
   white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--txt);
-  line-height: 1.6;
+  word-break: break-word;
+  line-height: 1.65;
+  padding: 8px 0 4px;
 }
 .validity {
   display: flex;
   gap: 16px;
-  margin-top: 6px;
   font-family: var(--mono);
-  font-size: .6rem;
+  font-size: .58rem;
   color: var(--txtd);
+  padding-top: 4px;
+  border-top: 1px solid var(--brd);
 }
