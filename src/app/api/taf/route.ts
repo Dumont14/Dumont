@@ -9,9 +9,10 @@ export async function GET(req: NextRequest) {
   }
   try {
     const taf = await fetchTaf(icao);
-    return NextResponse.json({ taf }, {
-      headers: { 'Cache-Control': 's-maxage=900, stale-while-revalidate=120' },
-    });
+    return NextResponse.json(
+      { taf },
+      { headers: { 'Cache-Control': 's-maxage=900, stale-while-revalidate=120' } }
+    );
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }
