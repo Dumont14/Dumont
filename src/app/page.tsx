@@ -7,6 +7,7 @@ import { MetarPanel }    from '@/components/briefing/MetarPanel';
 import { TafPanel }      from '@/components/briefing/TafPanel';
 import { NotamPanel }    from '@/components/briefing/NotamPanel';
 import { AirportPanel }  from '@/components/briefing/AirportPanel';
+import { RoutePanel }    from '@/components/briefing/RoutePanel';
 import { ActivityFeed }  from '@/components/feed/ActivityFeed';
 import { DumontButton }  from '@/components/dumont/DumontButton';
 import styles from './page.module.css';
@@ -139,6 +140,7 @@ export default function HomePage() {
                     <span className={styles.divArrow}>──────→</span>
                     <span>{activeArr}</span>
                   </div>
+                  <RoutePanel dep={activeDep} arr={activeArr} />
                   <MetarPanel   icao={activeArr} />
                   <TafPanel     icao={activeArr} />
                   <NotamPanel   icao={activeArr} />
