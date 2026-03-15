@@ -5,7 +5,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { Disclaimer }   from '@/components/ui/Disclaimer';
 import { MetarPanel }   from '@/components/briefing/MetarPanel';
 import { NotamPanel }   from '@/components/briefing/NotamPanel';
-import { AirportPanel } from '@/components/briefing/AirportPanel';
 import { ActivityFeed } from '@/components/feed/ActivityFeed';
 import { DumontButton } from '@/components/dumont/DumontButton';
 import styles from './page.module.css';
@@ -128,7 +127,6 @@ export default function HomePage() {
             <div className={styles.panels}>
               <MetarPanel icao={activeDep} />
               <NotamPanel icao={activeDep} />
-              <AirportPanel icao={activeDep} />
               {activeArr && (
                 <>
                   <div className={styles.divider}>
@@ -138,7 +136,6 @@ export default function HomePage() {
                   </div>
                   <MetarPanel icao={activeArr} />
                   <NotamPanel icao={activeArr} />
-                  <AirportPanel icao={activeArr} />
                 </>
               )}
             </div>
