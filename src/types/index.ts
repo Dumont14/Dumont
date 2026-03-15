@@ -120,6 +120,32 @@ export interface AirportInfo {
   source:      'aisweb' | 'ourairports';
 }
 
+
+// ── TAF ─────────────────────────────────────────────────
+export interface TafPeriod {
+  raw:     string;
+  from:    string;
+  to:      string;
+  type:    'BASE' | 'BECMG' | 'TEMPO' | 'PROB' | 'FM';
+  prob:    number | null;
+  wind:    string | null;
+  vis:     string | null;
+  wx:      string | null;
+  clouds:  string[];
+  cat:     'VMC' | 'MVFR' | 'IFR' | 'LIFR' | null;
+  adverse: string[];
+}
+
+export interface ParsedTaf {
+  raw:        string;
+  icao:       string;
+  issued:     string;
+  validFrom:  string;
+  validTo:    string;
+  periods:    TafPeriod[];
+  hasAdverse: boolean;
+}
+
 // ── Voice / Dumont ──────────────────────────────────────
 export type VoiceIntent = 'aerodrome' | 'route';
 export type VoiceLang   = 'pt' | 'en';
