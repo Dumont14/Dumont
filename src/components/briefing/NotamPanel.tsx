@@ -27,8 +27,7 @@ function AtsBox({ ats }: { ats: AtsHours }) {
     : styles.atsOpen;
   const icon = ats.isH24 ? '🟢'
     : !ats.isOpen        ? '🔴'
-    : ats.closingSoon    ? '🟡'
-    : '🟢';
+    : ats.closingSoon    ? '🟡' : '🟢';
   const nowMin = new Date().getUTCHours() * 60 + new Date().getUTCMinutes();
 
   return (
@@ -40,7 +39,9 @@ function AtsBox({ ats }: { ats: AtsHours }) {
           <span className={styles.atsStatus}>H24 — Operação contínua</span>
         ) : !ats.isOpen ? (
           <span className={styles.atsStatus}>
-            FECHADO — Abre {ats.opensIn !== undefined ? `em ${ats.opensIn}min` : `às ${fmtMin(ats.open)}`}
+            FECHADO — Abre {ats.opensIn !== undefined
+              ? `em ${ats.opensIn}min`
+              : `às ${fmtMin(ats.open)}`}
             {' '}· Solicite extensão ao órgão ATS
           </span>
         ) : ats.closingSoon ? (
@@ -55,7 +56,7 @@ function AtsBox({ ats }: { ats: AtsHours }) {
   );
 }
 
-// ── Caixa de Schedule do NOTAM (campo <d>) ────────────
+// ── Caixa de Schedule do NOTAM ────────────────────────
 function ScheduleBox({ n }: { n: ParsedNotamEx }) {
   const s = n.schedule;
   if (!s) return null;
@@ -124,11 +125,7 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
     : 'ok';
 
   return (
-    <Panel
-      title="NOTAMs"
-      subtitle={icao}
-      status={panelStatus as 'ok' | 'warn' | 'crit' | 'loading'}
-    >
+    <Panel title="NOTAMs" subtitle={icao} status={panelStatus as 'ok' | 'warn' | 'crit' | 'loading'}>
       {loading && <div className={styles.msg}><span className="spin" /> Buscando NOTAMs…</div>}
       {error   && <div className={styles.error}>⚠ {error}</div>}
 
@@ -146,48 +143,54 @@ export function NotamPanel({ icao, showAiSummary = true }: NotamPanelProps) {
       )}
 
       <ul className={styles.list}>
-        {notams.map(n => (
-          <li key={n.id} className={[styles.item, styles[n.sev]].join(' ')}>
-            <button
-              className={styles.itemHead}
-              onClick={() => setExpanded(expanded === n.id ? null : n.id)}
-            >
-              <span className={[styles.sevBadge, styles[`sev_${n.sev}`]].join(' ')}>
-                {SEV_LABEL[n.sev]}
-              </span>
-              <span className={styles.cat}>{n.cat.l}</span>
-              <span className={styles.preview}>
-                {n.text.substring(0, 80)}{n.text.length > 80 ? '…' : ''}
-              </span>
-              <span className={styles.arrow}>{expanded === n.id ? '▲' : '▼'}</span>
-            </button>
+        {notams.map(n => {
+          const isOpen = expanded === n.id;
+          return (
+            <li key={n.id} className={[styles.item, styles[n.sev]].join(' ')}>
 
-            {expanded === n.id && (
-              <div className={styles.full}>
-                {/* Número do NOTAM */}
+              {/* Header clicável — mostra número + categoria + preview */}
+              <button
+                className={styles.itemHead}
+                onClick={() => setExpanded(isOpen ? null : n.id)}
+              >
+                <span className={[styles.sevBadge, styles[`sev_${n.sev}`]].join(' ')}>
+                  {SEV_LABEL[n.sev]}
+                </span>
+                <span className={styles.cat}>{n.cat.l}</span>
+                {/* Número do NOTAM no header — ex: G0576/26 */}
                 {n.notamNum && n.notamNum !== '?' && (
-                  <div className={styles.notamHeader}>
-                    <span className={styles.notamNum}>{n.notamNum}</span>
-                  </div>
+                  <span className={styles.notamNumInline}>{n.notamNum}</span>
                 )}
-
-                {/* Texto completo */}
-                <pre className={styles.pre}>{n.text}</pre>
-
-                {/* Schedule operacional — aberto/fechado agora */}
-                <ScheduleBox n={n} />
-
-                {/* Validade */}
-                {(n.validFrom || n.validTo) && (
-                  <div className={styles.validity}>
-                    {n.validFrom && <span>DE: {n.validFrom}</span>}
-                    {n.validTo   && <span>ATÉ: {n.validTo}</span>}
-                  </div>
+                {/* Preview do texto — apenas quando fechado */}
+                {!isOpen && (
+                  <span className={styles.preview}>
+                    {n.text.substring(0, 60)}{n.text.length > 60 ? '…' : ''}
+                  </span>
                 )}
-              </div>
-            )}
-          </li>
-        ))}
+                <span className={styles.arrow}>{isOpen ? '▲' : '▼'}</span>
+              </button>
+
+              {/* Conteúdo expandido */}
+              {isOpen && (
+                <div className={styles.full}>
+                  {/* Texto completo */}
+                  <pre className={styles.pre}>{n.text}</pre>
+
+                  {/* Schedule operacional */}
+                  <ScheduleBox n={n} />
+
+                  {/* Validade */}
+                  {(n.validFrom || n.validTo) && (
+                    <div className={styles.validity}>
+                      {n.validFrom && <span>DE: {n.validFrom}</span>}
+                      {n.validTo   && <span>ATÉ: {n.validTo}</span>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </Panel>
   );
