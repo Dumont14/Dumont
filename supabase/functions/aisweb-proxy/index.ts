@@ -13,56 +13,64 @@ Deno.serve(async (req) => {
   try {
     const url    = new URL(req.url);
     const icao   = url.searchParams.get('icao')?.toUpperCase();
+    
+    // Suporte para corpo JSON (POST) se necessário
+    let bodyData: any = {};
+    if (req.method === 'POST') {
+      try { bodyData = await req.json(); } catch(e) {}
+    }
+
+    const finalIcao = icao || bodyData.icao || bodyData.icaoCode;
+    const area      = url.searchParams.get('area') || bodyData.area || 'notam';
+    
     const user   = Deno.env.get('AISWEB_USER');
     const pass   = Deno.env.get('AISWEB_PASS');
+    const apiKey  = Deno.env.get('AISWEB_API_KEY') || user;
+    const apiPass = Deno.env.get('AISWEB_API_PASS') || pass;
+    const redemetKey = Deno.env.get('REDEMET_KEY');
 
-    if (!icao) {
+    if (!finalIcao) {
       return new Response(
         JSON.stringify({ error: 'Missing ICAO' }),
         { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!user || !pass) {
+    if (!apiKey || !apiPass) {
       return new Response(
         JSON.stringify({ error: 'AISWEB credentials not configured' }),
         { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Buscar NOTAMs do AISWEB
-    console.log(`Fetching NOTAMs for ${icao} (v9 - User Pattern)...`);
+    // Buscar dados do AISWEB
+    console.log(`Fetching ${area.toUpperCase()} for ${finalIcao} (v10)...`);
     
     const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-    
-    // Suporte a múltiplos nomes de variáveis (do usuário e as nossas)
-    const apiKey  = Deno.env.get('AISWEB_API_KEY') || user;
-    const apiPass = Deno.env.get('AISWEB_API_PASS') || pass;
-    const redemetKey = Deno.env.get('REDEMET_KEY');
 
     const fetchAisweb = async () => {
-      // Usar exatamente o padrão de URL e parâmetros do usuário
       const params = new URLSearchParams({
         apiKey: apiKey || '',
         apiPass: apiPass || '',
-        area: 'notam',
-        icaoCode: icao
+        area,
+        icaoCode: finalIcao
       });
       
-      // Nova URL fornecida pelo usuário
-      const url = `https://aisweb.decea.mil.br/api/?${params.toString()}`;
-      console.log(`[DEBUG] AISWEB Proxy v9 Fetch: ${url}`);
+      const aiswebUrl = `https://aisweb.decea.mil.br/api/?${params.toString()}`;
+      console.log(`[DEBUG] AISWEB Proxy v10 Fetch: ${aiswebUrl}`);
 
-      return await fetch(url, {
+      return await fetch(aiswebUrl, {
         headers: { 'Accept': 'application/json, text/xml, */*', 'User-Agent': browserUA },
-        signal: AbortSignal.timeout(10000), // 10s para fail-fast
+        signal: AbortSignal.timeout(12000), 
       });
     };
 
     const fetchRedemet = async () => {
       if (!redemetKey) throw new Error('REDEMET_KEY not configured');
+      // Apenas fallback para NOTAM por enquanto
+      if (area !== 'notam') throw new Error(`Fallback not available for ${area}`);
       return await fetch(
-        `https://api-redemet.decea.mil.br/notam?icao=${icao}&api_key=${redemetKey}`,
+        `https://api-redemet.decea.mil.br/notam?icao=${finalIcao}&api_key=${redemetKey}`,
         {
           headers: { 'Accept': 'application/json', 'User-Agent': browserUA },
           signal: AbortSignal.timeout(10000), 
@@ -88,13 +96,6 @@ Deno.serve(async (req) => {
 
     if (!aisbRes || !aisbRes.ok) {
       throw new Error(errorMsg || `Proxy failed with status ${aisbRes?.status}`);
-    }
-
-    if (!aisbRes.ok) {
-      return new Response(
-        JSON.stringify({ error: `AISWEB ${aisbRes.status}` }),
-        { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
-      );
     }
 
     const rawText = await aisbRes.text();

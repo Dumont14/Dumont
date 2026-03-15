@@ -69,6 +69,11 @@ export function AirportPanel({ icao }: AirportPanelProps) {
       title="AERÓDROMO"
       subtitle={icao}
       status={panelStatus as 'ok' | 'warn' | 'loading'}
+      badge={info?.source && (
+        <span className={[styles.sourceBadge, styles[info.source]].join(' ')}>
+          {info.source.toUpperCase()}
+        </span>
+      )}
     >
       {loading && (
         <div className={styles.msg}><span className="spin" /> Carregando…</div>

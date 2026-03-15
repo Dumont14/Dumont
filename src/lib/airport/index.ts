@@ -27,6 +27,14 @@ export interface AirportInfo {
 const CSV_BASE = 'https://davidmegginson.github.io/ourairports-data';
 const isBrazilian = (icao: string) => /^SB[A-Z]{2}$/i.test(icao);
 
+function getProxyUrl() {
+  return process.env.SUPABASE_AISWEB_PROXY_URL || 'https://qwfoxxwctbeemmowaxpj.supabase.co/functions/v1/aisweb-proxy';
+}
+
+function getAnonKey() {
+  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+}
+
 // Cache em memória para os CSVs (evitar fetch repetido)
 const csvCache: Record<string, string> = {};
 
@@ -54,6 +62,7 @@ function parseCSVLine(line: string): string[] {
 
 async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
   try {
+    const code = icao.toUpperCase();
     const [freqCSV, rwyCSV, aptCSV] = await Promise.all([
       fetchCSV(`${CSV_BASE}/airport-frequencies.csv`),
       fetchCSV(`${CSV_BASE}/runways.csv`),
@@ -71,7 +80,7 @@ async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
     let airportName = '';
     for (let i = 1; i < aptLines.length; i++) {
       const cols = parseCSVLine(aptLines[i]);
-      if (cols[icaoIdx]?.toUpperCase() === icao) {
+      if (cols[icaoIdx]?.toUpperCase() === code) {
         airportId   = cols[idIdx];
         airportName = cols[nameIdx];
         break;
@@ -129,13 +138,86 @@ async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
     }
 
     return {
-      icao, name: airportName,
+      icao: code, name: airportName,
       frequencies, runways,
       source: 'ourairports',
     };
   } catch {
     return null;
   }
+}
+
+async function fetchFromAiswebRotaer(icao: string): Promise<AirportInfo | null> {
+  try {
+    const proxyUrl = getProxyUrl();
+    const res = await fetch(
+      `${proxyUrl}?icao=${icao.toUpperCase()}&area=rotaer`,
+      {
+        headers: { 'Authorization': `Bearer ${getAnonKey()}` },
+        next: { revalidate: 3600 },
+      } as any
+    );
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    const xml = data.raw || '';
+    if (!xml) return null;
+
+    return parseRotaerXML(icao, xml);
+  } catch (e) {
+    console.error(`[ROTAER] Error for ${icao}:`, e);
+    return null;
+  }
+}
+
+function parseRotaerXML(icao: string, xml: string): AirportInfo {
+  const getTag = (content: string, tag: string) => {
+    const m = content.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+    return m ? m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim() : '';
+  };
+
+  const name = getTag(xml, 'nome') || getTag(xml, 'origem') || icao;
+  
+  // Frequências
+  const frequencies: Frequency[] = [];
+  const freqBlocks = xml.match(/<frequencia[^>]*>([\s\S]*?)<\/frequencia>/gi) || [];
+  for (const block of freqBlocks) {
+    const type = getTag(block, 'tipo');
+    const mhz = getTag(block, 'valor');
+    if (type && mhz) {
+      frequencies.push({
+        type: normalizeFreqType(type.toUpperCase()),
+        mhz,
+        description: getTag(block, 'nome') || '',
+      });
+    }
+  }
+
+  // Pistas
+  const runways: Runway[] = [];
+  const rwyBlocks = xml.match(/<pista[^>]*>([\s\S]*?)<\/pista>/gi) || [];
+  for (const block of rwyBlocks) {
+    const ident = getTag(block, 'identificacao'); // ex: "10/28"
+    const [le, he] = ident.split('/');
+    const lengthM = parseInt(getTag(block, 'comprimento')) || 0;
+    const widthM = parseInt(getTag(block, 'largura')) || 0;
+    runways.push({
+      le_ident: le || ident,
+      he_ident: he || '',
+      length_ft: Math.round(lengthM / 0.3048),
+      width_ft: Math.round(widthM / 0.3048),
+      surface: normalizeSurface(getTag(block, 'piso')),
+      closed: getTag(block, 'status')?.toUpperCase() === 'FECHADA',
+    });
+  }
+
+  return {
+    icao,
+    name,
+    frequencies,
+    runways,
+    source: 'aisweb',
+  };
 }
 
 function normalizeFreqType(type: string): string {
@@ -165,45 +247,21 @@ function normalizeSurface(s: string): string {
 export async function fetchAirportInfo(icao: string): Promise<AirportInfo | null> {
   const code = icao.toUpperCase();
   
-  // Buscar Our Airports sempre (cobertura global)
+  // 1. Se for BR, tentar ROTAER (Oficial) primeiro
+  if (isBrazilian(code)) {
+    const rotaer = await fetchFromAiswebRotaer(code);
+    if (rotaer && rotaer.frequencies.length > 0) {
+      return rotaer;
+    }
+  }
+
+  // 2. Fallback ou Internacional: OurAirports
   const base = await fetchFromOurAirports(code);
   
-  // Para aeródromos brasileiros, tentar complementar com AISWEB
-  if (isBrazilian(code)) {
-    try {
-      const proxyUrl = process.env.SUPABASE_AISWEB_PROXY_URL || 'https://qwfoxxwctbeemmowaxpj.supabase.co/functions/v1/aisweb-proxy';
-      if (proxyUrl) {
-        const res = await fetch(
-          `${proxyUrl}?icao=${code}&type=airport`,
-          {
-            headers: {
-              'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-            },
-            next: { revalidate: 3600 },
-          } as any
-        );
-        if (res.ok) {
-          const data = await res.json();
-          // Se AISWEB retornar frequências, mesclar com Our Airports
-          if (data.frequencies?.length && base) {
-            base.frequencies = mergeFrequencies(base.frequencies, data.frequencies);
-            base.source = 'combined';
-          }
-        }
-      }
-    } catch { /* silêncio — Our Airports já é suficiente */ }
+  // 3. Se OurAirports falhar ou for BR sem ROTAER completo, mesclar o que tiver
+  if (isBrazilian(code) && !base) {
+    return await fetchFromAiswebRotaer(code);
   }
 
   return base;
-}
-
-function mergeFrequencies(base: Frequency[], aisweb: Frequency[]): Frequency[] {
-  const merged = [...base];
-  for (const f of aisweb) {
-    const exists = merged.find(b => b.type === f.type);
-    if (!exists) merged.push(f);
-    // AISWEB tem prioridade para BR — atualizar MHz se diferente
-    else if (exists.mhz !== f.mhz) exists.mhz = f.mhz;
-  }
-  return merged;
 }

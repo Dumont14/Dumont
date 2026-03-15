@@ -100,3 +100,33 @@
   .rwyLen   { font-size: var(--fs-sm-m); }
   .sectionTitle { font-size: 0.62rem; }
 }
+
+.sourceBadge {
+  font-family: var(--disp);
+  font-size: 0.48rem;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-left: 8px;
+  letter-spacing: 1px;
+}
+
+.aisweb {
+  background: rgba(0, 255, 100, 0.12);
+  color: #00ff64;
+  border: 1px solid rgba(0, 255, 100, 0.3);
+}
+
+.ourairports {
+  background: rgba(0, 200, 255, 0.12);
+  color: #00c8ff;
+  border: 1px solid rgba(0, 200, 255, 0.3);
+}
+
+.combined {
+  background: rgba(255, 200, 0, 0.12);
+  color: #ffc800;
+  border: 1px solid rgba(255, 200, 0, 0.3);
+}
+
