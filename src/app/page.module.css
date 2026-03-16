@@ -220,23 +220,36 @@
 .welcomeIcon { font-size: 2.5rem; opacity: .3; }
 .welcomeSub  { font-size: .8rem; font-family: var(--mono); }
 
-.panels {
+/* ── Carrossel de cards ─────────────────────────────── */
+.carousel {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 0;
-  font-family: var(--disp);
-  font-size: .52rem;
-  letter-spacing: 2px;
-  color: var(--acc);
+/* Desktop: 2 colunas quando há DEP+ARR */
+.carouselTwo .carouselTrack {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
 }
-.divArrow { color: var(--txtd); font-family: var(--mono); }
+.carouselTwo .carouselItem:nth-child(3) {
+  display: none; /* rota fica abaixo no desktop */
+}
+
+/* Desktop: 1 coluna só DEP */
+.carouselOne .carouselTrack {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  max-width: 640px;
+}
+
+.carouselDots { display: none; } /* visível só no mobile */
+
+/* Rota abaixo dos cards no desktop */
+.routeDesktop { margin-top: 0; }
+.carouselRoute { display: none; } /* no desktop, rota fica fora do carrossel */
 
 /* ── CREW PLACEHOLDER ───────────────────────────────── */
 .crewPlaceholder {
@@ -383,6 +396,49 @@
     inset: 0;
     bottom: 60px;
     background: var(--bg);
+  }
+
+  /* Carrossel mobile */
+  .carousel { gap: 0; }
+
+  .carouselTwo .carouselTrack,
+  .carouselOne .carouselTrack {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding: 0 14px 12px;
+    scrollbar-width: none;
+  }
+  .carouselTwo .carouselTrack::-webkit-scrollbar,
+  .carouselOne .carouselTrack::-webkit-scrollbar { display: none; }
+
+  .carouselItem {
+    flex: 0 0 calc(100vw - 28px);
+    scroll-snap-align: start;
+    max-width: 100%;
+  }
+
+  /* Mostrar card de rota no carrossel mobile */
+  .carouselTwo .carouselItem:nth-child(3) { display: block; }
+  .carouselRoute { display: block !important; }
+
+  /* Esconder rota standalone no mobile */
+  .routeDesktop { display: none; }
+
+  /* Dots indicadores */
+  .carouselDots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px 0 8px;
+  }
+  .carouselDot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--brd);
   }
 }
 

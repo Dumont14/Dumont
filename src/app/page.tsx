@@ -3,14 +3,10 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Disclaimer }    from '@/components/ui/Disclaimer';
-import { MetarPanel }    from '@/components/briefing/MetarPanel';
-import { TafPanel }      from '@/components/briefing/TafPanel';
-import { NotamPanel }    from '@/components/briefing/NotamPanel';
-import { AirportPanel }  from '@/components/briefing/AirportPanel';
+import { BriefingCard }  from '@/components/briefing/BriefingCard';
 import { RoutePanel }    from '@/components/briefing/RoutePanel';
 import { ActivityFeed }  from '@/components/feed/ActivityFeed';
 import { DumontButton }  from '@/components/dumont/DumontButton';
-import { useBriefingMode } from '@/hooks/useBriefingMode';
 import styles from './page.module.css';
 
 function UtcClock() {
@@ -34,8 +30,6 @@ export default function HomePage() {
   const [feedOpen, setFeedOpen]   = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('brief');
 
-  const { mode, toggle } = useBriefingMode();
-
   const runBriefing = useCallback(() => {
     const d = dep.trim().toUpperCase();
     if (d.length < 2) return;
@@ -51,6 +45,8 @@ export default function HomePage() {
   }, []);
 
   const handleKey = (e: React.KeyboardEvent) => { if (e.key === 'Enter') runBriefing(); };
+
+  const hasRoute = !!(activeDep && activeArr);
 
   return (
     <div className={styles.shell}>
@@ -112,17 +108,6 @@ export default function HomePage() {
           </div>
 
           <div className={styles.headerRight}>
-            {/* Toggle modo piloto/completo */}
-            <button
-              className={[styles.modeToggle, mode === 'full' ? styles.modeToggleFull : ''].join(' ')}
-              onClick={toggle}
-              title={mode === 'pilot' ? 'Modo Piloto — clique para ver tudo' : 'Modo Completo — clique para resumir'}
-              aria-label={`Modo ${mode === 'pilot' ? 'Piloto' : 'Completo'}`}
-            >
-              <span className={styles.modeIcon}>{mode === 'pilot' ? '✈' : '⚙'}</span>
-              <span className={styles.modeLabel}>{mode === 'pilot' ? 'PILOTO' : 'FULL'}</span>
-            </button>
-
             <button
               className={styles.feedToggle}
               onClick={() => setFeedOpen(o => !o)}
@@ -141,29 +126,45 @@ export default function HomePage() {
           )}
 
           {activeDep && (
-            <div className={styles.panels}>
-              {/* ── DEP ── */}
-              <MetarPanel   icao={activeDep} mode={mode} />
-              <TafPanel     icao={activeDep} mode={mode} />
-              <NotamPanel   icao={activeDep} mode={mode} />
-              <AirportPanel icao={activeDep} mode={mode} />
-
-              {/* ── ROTA ── */}
-              {activeArr && (
-                <>
-                  <div className={styles.divider}>
-                    <span>{activeDep}</span>
-                    <span className={styles.divArrow}>──────→</span>
-                    <span>{activeArr}</span>
+            <>
+              {/* ── CARDS DE AD ── */}
+              {/* Desktop: 1 coluna (só DEP) ou 2 colunas (DEP+ARR) */}
+              {/* Mobile: carrossel horizontal com snap */}
+              <div className={[styles.carousel, hasRoute ? styles.carouselTwo : styles.carouselOne].join(' ')}>
+                <div className={styles.carouselTrack}>
+                  <div className={styles.carouselItem}>
+                    <BriefingCard icao={activeDep} label="DEP" />
                   </div>
+                  {activeArr && (
+                    <div className={styles.carouselItem}>
+                      <BriefingCard icao={activeArr} label="ARR" />
+                    </div>
+                  )}
+                  {/* Card de rota — só no carrossel mobile quando há ARR */}
+                  {activeArr && (
+                    <div className={[styles.carouselItem, styles.carouselRoute].join(' ')}>
+                      <RoutePanel dep={activeDep} arr={activeArr} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Indicadores de scroll (mobile) */}
+                {hasRoute && (
+                  <div className={styles.carouselDots}>
+                    <span className={styles.carouselDot} />
+                    <span className={styles.carouselDot} />
+                    <span className={styles.carouselDot} />
+                  </div>
+                )}
+              </div>
+
+              {/* ── ROTA (desktop) — abaixo dos dois cards ── */}
+              {activeArr && (
+                <div className={styles.routeDesktop}>
                   <RoutePanel dep={activeDep} arr={activeArr} />
-                  <MetarPanel   icao={activeArr} mode={mode} />
-                  <TafPanel     icao={activeArr} mode={mode} />
-                  <NotamPanel   icao={activeArr} mode={mode} />
-                  <AirportPanel icao={activeArr} mode={mode} />
-                </>
+                </div>
               )}
-            </div>
+            </>
           )}
         </div>
       </main>
