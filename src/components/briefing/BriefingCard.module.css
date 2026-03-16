@@ -1,0 +1,473 @@
+/* src/components/briefing/BriefingCard.module.css */
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--brd);
+  border-top: 3px solid var(--brd);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  position: relative;
+}
+
+/* Status top border */
+.status_ok    { border-top-color: var(--grn); }
+.status_warn  { border-top-color: var(--amb); }
+.status_alert { border-top-color: var(--red); }
+.status_loading { border-top-color: var(--brdg); }
+
+/* ── Header ─────────────────────────────────────────── */
+.cardHeader { display: flex; flex-direction: column; gap: 3px; }
+
+.icaoRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.label {
+  font-family: var(--disp);
+  font-size: 0.44rem;
+  letter-spacing: 2px;
+  color: var(--txtd);
+  padding: 2px 6px;
+  border: 1px solid var(--brd);
+}
+
+.icao {
+  font-family: var(--disp);
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: var(--acc2);
+  line-height: 1;
+}
+
+.adName {
+  font-family: var(--ui);
+  font-size: 0.82rem;
+  color: var(--txtb);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.catBadge {
+  font-family: var(--disp);
+  font-size: 0.58rem;
+  letter-spacing: 2px;
+  padding: 3px 8px;
+  font-weight: 700;
+}
+.catVmc  { color: var(--grn); background: rgba(0,230,118,.1);  border: 1px solid rgba(0,230,118,.3);  }
+.catMvfr { color: var(--amb); background: rgba(255,171,0,.1);  border: 1px solid rgba(255,171,0,.3);  }
+.catIfr  { color: var(--red); background: rgba(255,61,61,.12); border: 1px solid rgba(255,61,61,.35); }
+.catLifr { color: #ff00cc;    background: rgba(255,0,204,.1);  border: 1px solid rgba(255,0,204,.3);  }
+
+.speciBadge {
+  font-family: var(--disp);
+  font-size: 0.44rem;
+  letter-spacing: 1.5px;
+  color: var(--amb);
+  padding: 2px 6px;
+  border: 1px solid rgba(255,171,0,.4);
+  background: rgba(255,171,0,.08);
+}
+
+.subRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cityUf {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--txtd);
+}
+
+.sunRow {
+  display: flex;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--amb);
+  opacity: .85;
+}
+
+/* ── Loading ─────────────────────────────────────────── */
+.loadingRow {
+  font-family: var(--mono);
+  font-size: 0.80rem;
+  color: var(--txtd);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+/* ── METAR ───────────────────────────────────────────── */
+.metarRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--brd);
+}
+
+.metItem {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  color: var(--txtb);
+}
+
+.metLabel {
+  font-family: var(--disp);
+  font-size: 0.40rem;
+  letter-spacing: 1.5px;
+  color: var(--txtd);
+}
+
+.ok   { color: var(--grn); }
+.warn { color: var(--amb); }
+.crit { color: var(--red); }
+.gust { color: var(--red); }
+
+/* ── TAF ─────────────────────────────────────────────── */
+.tafRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--brd);
+}
+
+.sectionLabel {
+  font-family: var(--disp);
+  font-size: 0.44rem;
+  letter-spacing: 2px;
+  color: var(--txtd);
+  padding-top: 3px;
+  flex-shrink: 0;
+  min-width: 44px;
+}
+
+.okText  { font-family: var(--mono); font-size: 0.78rem; color: var(--grn); }
+.dimText { font-family: var(--mono); font-size: 0.78rem; color: var(--txtd); }
+.warnText { font-family: var(--mono); font-size: 0.78rem; color: var(--amb); }
+
+.tafAlerts { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+
+.tafAlert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+}
+
+.tafType {
+  font-family: var(--disp);
+  font-size: 0.44rem;
+  letter-spacing: 1.5px;
+  color: var(--txtd);
+}
+
+.tafTime {
+  font-size: 0.68rem;
+  color: var(--txtd);
+}
+
+.adverseBadge {
+  font-family: var(--disp);
+  font-size: 0.44rem;
+  letter-spacing: 1.5px;
+  padding: 2px 6px;
+  color: var(--red);
+  background: rgba(255,61,61,.12);
+  border: 1px solid rgba(255,61,61,.4);
+}
+
+.tafDetail { color: var(--txt); font-size: 0.75rem; }
+
+/* ── NOTAMs ──────────────────────────────────────────── */
+.notamRow {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 0;
+  border-top: 1px solid var(--brd);
+}
+
+.notamCrit {
+  border: 1px solid rgba(255,61,61,.35);
+  background: rgba(255,61,61,.04);
+}
+
+.notamBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.notamBtn:hover { background: rgba(255,255,255,.02); }
+
+.notamCritBadge {
+  font-family: var(--disp);
+  font-size: 0.44rem;
+  letter-spacing: 1.5px;
+  padding: 2px 5px;
+  color: var(--red);
+  background: rgba(255,61,61,.15);
+  border: 1px solid rgba(255,61,61,.4);
+  flex-shrink: 0;
+}
+
+.notamCat {
+  font-family: var(--disp);
+  font-size: 0.48rem;
+  letter-spacing: 1.5px;
+  color: var(--txtd);
+  flex-shrink: 0;
+  min-width: 48px;
+}
+
+.notamNum {
+  font-family: var(--disp);
+  font-size: 0.48rem;
+  letter-spacing: 1.5px;
+  color: var(--acc);
+  flex-shrink: 0;
+}
+
+.notamText {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: #ffaaaa;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notamArrow { font-size: .5rem; color: var(--txtd); flex-shrink: 0; }
+
+.notamExpanded {
+  padding: 0 10px 10px;
+  border-top: 1px solid rgba(255,61,61,.2);
+}
+
+.notamPre {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--txtb);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.65;
+  padding: 6px 0 4px;
+}
+
+.schedLine {
+  font-family: var(--mono);
+  font-size: 0.70rem;
+  padding: 5px 10px;
+  border-left: 3px solid;
+  margin: 4px 0;
+  line-height: 1.5;
+}
+.schedOpen   { border-color: var(--grn); background: rgba(0,230,118,.06); color: var(--txt); }
+.schedClosed { border-color: var(--red); background: rgba(255,61,61,.06); color: var(--red); }
+.schedLine strong { color: var(--txtb); }
+
+.notamValidity {
+  display: flex;
+  gap: 14px;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--txtd);
+  padding-top: 3px;
+}
+
+/* ── INFRA (ATS + FREQ + RWY) ────────────────────────── */
+.infraRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0;
+  border-top: 1px solid var(--brd);
+}
+
+.atsChip {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  border-left: 3px solid;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.atsOpen   { border-color: var(--grn); background: rgba(0,230,118,.06); color: var(--txt); }
+.atsWarn   { border-color: var(--amb); background: rgba(255,171,0,.08); color: var(--amb); }
+.atsClosed { border-color: var(--red); background: rgba(255,61,61,.08); color: var(--red); }
+
+.freqChip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: rgba(0,0,0,.25);
+  border: 1px solid var(--brd);
+  font-family: var(--mono);
+}
+
+.freqType {
+  font-family: var(--disp);
+  font-size: 0.42rem;
+  letter-spacing: 1.5px;
+  color: var(--txtd);
+}
+
+.freqMhz {
+  font-size: 0.82rem;
+  color: var(--acc2);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.rwyChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  background: rgba(0,0,0,.25);
+  border: 1px solid var(--brd);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--txt);
+}
+.rwyChip.rwyClosed {
+  border-color: rgba(255,61,61,.3);
+  color: var(--red);
+  opacity: .8;
+}
+
+/* ── Botão Ver Detalhes ──────────────────────────────── */
+.detailsBtn {
+  font-family: var(--disp);
+  font-size: 0.44rem;
+  letter-spacing: 2px;
+  color: var(--txtd);
+  background: none;
+  border: 1px solid var(--brd);
+  padding: 5px 0;
+  cursor: pointer;
+  width: 100%;
+  transition: all .15s;
+  margin-top: 2px;
+}
+.detailsBtn:hover {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+/* ── Detalhes expandidos ─────────────────────────────── */
+.detailsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--brd);
+  padding-top: 12px;
+}
+
+.detailBlock { display: flex; flex-direction: column; gap: 6px; }
+
+.detailTitle {
+  font-family: var(--disp);
+  font-size: 0.44rem;
+  letter-spacing: 2px;
+  color: var(--acc);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--brd);
+}
+
+.rawPre {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--txt);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.65;
+  background: rgba(0,0,0,.25);
+  border: 1px solid var(--brd);
+  padding: 8px 12px;
+}
+
+.notamFull {
+  border: 1px solid var(--brd);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.notamFullHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge_crit { @extend .notamCritBadge; }
+.badge_warn {
+  font-family: var(--disp); font-size: 0.44rem; letter-spacing: 1.5px;
+  padding: 2px 5px; color: var(--amb);
+  background: rgba(255,171,0,.12); border: 1px solid rgba(255,171,0,.35);
+}
+.badge_info {
+  font-family: var(--disp); font-size: 0.44rem; letter-spacing: 1.5px;
+  padding: 2px 5px; color: var(--acc);
+  background: rgba(0,170,255,.08); border: 1px solid rgba(0,170,255,.25);
+}
+.sev_crit { border-color: rgba(255,61,61,.3); }
+.sev_warn { border-color: rgba(255,171,0,.25); }
+.sev_info { border-color: var(--brd); }
+
+.remarksList { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.remark {
+  font-family: var(--mono); font-size: 0.68rem; color: var(--txt);
+  line-height: 1.55; padding: 5px 10px;
+  border: 1px solid var(--brd); border-left: 3px solid var(--brdg);
+}
+
+.fuelText {
+  font-family: var(--mono); font-size: 0.68rem; color: var(--txt);
+  line-height: 1.6; padding: 6px 10px;
+  border: 1px solid var(--brd);
+}
+
+/* ── Mobile ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .card        { padding: 14px; gap: 10px; }
+  .icao        { font-size: 1rem; }
+  .adName      { font-size: 0.78rem; }
+  .metItem     { font-size: var(--fs-md-m); }
+  .freqMhz     { font-size: var(--fs-md-m); }
+  .rwyChip     { font-size: var(--fs-sm-m); }
+  .notamText   { font-size: var(--fs-sm-m); white-space: normal; }
+  .atsChip     { font-size: var(--fs-sm-m); }
+  .okText, .dimText, .warnText { font-size: var(--fs-sm-m); }
+}
