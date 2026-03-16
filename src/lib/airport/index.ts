@@ -39,7 +39,7 @@ export interface AirportInfo {
   source:     'aisweb' | 'ourairports';
 }
 
-const isBrazilian = (icao: string) => /^S[A-Z]{3}$/i.test(icao);
+const isBrazilian = (icao: string) => /^S[BDINPRSW][A-Z]{2}$/i.test(icao);
 
 // ── AISWEB ROTAER (BR) ───────────────────────────────────
 
