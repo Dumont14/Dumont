@@ -2,7 +2,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { Panel } from '@/components/ui/Panel';
-import { decodeMetar, getFlightCategory } from '@/lib/weather/metar';
 import styles from './RoutePanel.module.css';
 
 interface RoutePanelProps { dep: string; arr: string; }
@@ -12,14 +11,13 @@ interface AirportCoord {
 }
 
 interface AlternateAD {
-  icao:     string;
-  name:     string;
-  lat:      number;
-  lng:      number;
-  distNM:   number;       // distância da linha de rota
-  posAlongRoute: number;  // 0..1 — posição ao longo da rota
-  metar:    string | null;
-  cat:      string | null;
+  icao:          string;
+  lat:           number;
+  lng:           number;
+  distNM:        number;
+  posAlongRoute: number;
+  metar:         string | null;
+  cat:           string | null;
 }
 
 interface RouteData {
@@ -27,8 +25,6 @@ interface RouteData {
   arr:       AirportCoord;
   distance:  number;
   heading:   number;
-  bearing:   number;
-  decl:      number;
   alternates: AlternateAD[];
 }
 
@@ -50,28 +46,21 @@ function trueBearing(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return (Math.atan2(x,y)*RAD+360)%360;
 }
 
-/** Ponto ao longo da geodésica (t=0..1) */
 function interpolate(lat1: number, lon1: number, lat2: number, lon2: number, t: number): [number,number] {
-  return [lat1 + (lat2-lat1)*t, lon1 + (lon2-lon1)*t];
+  return [lat1+(lat2-lat1)*t, lon1+(lon2-lon1)*t];
 }
 
-/** Distância perpendicular de um ponto à linha DEP→ARR */
 function crossTrackDist(
   lat: number, lon: number,
   lat1: number, lon1: number,
   lat2: number, lon2: number
 ): { dist: number; along: number } {
-  // Projeção do ponto na linha
   const totalDist = distNM(lat1,lon1,lat2,lon2);
   if (totalDist < 0.1) return { dist: distNM(lat,lon,lat1,lon1), along: 0 };
-
-  // Parâmetro t da projeção mais próxima
-  const dx = lon2-lon1, dy = lat2-lat1;
-  const t  = Math.max(0, Math.min(1,
-    ((lon-lon1)*dx + (lat-lat1)*dy) / (dx*dx+dy*dy)
-  ));
-  const [projLat, projLon] = interpolate(lat1,lon1,lat2,lon2,t);
-  return { dist: distNM(lat,lon,projLat,projLon), along: t };
+  const dx=lon2-lon1, dy=lat2-lat1;
+  const t=Math.max(0,Math.min(1,((lon-lon1)*dx+(lat-lat1)*dy)/(dx*dx+dy*dy)));
+  const [pLat,pLon]=interpolate(lat1,lon1,lat2,lon2,t);
+  return { dist: distNM(lat,lon,pLat,pLon), along: t };
 }
 
 async function fetchDeclination(lat: number, lon: number): Promise<number> {
@@ -84,15 +73,14 @@ async function fetchDeclination(lat: number, lon: number): Promise<number> {
     const data = await res.json();
     return data?.result?.[0]?.declination ?? 0;
   } catch {
-    return -19 + (lat+5)*0.25 + (lon+55)*(-0.15);
+    return -19+(lat+5)*0.25+(lon+55)*(-0.15);
   }
 }
 
 function fmt3(deg: number) { return String(Math.round(deg)).padStart(3,'0')+'°'; }
 
-// ── ADs alternativos conhecidos (Brasil) ──────────────────
-// Fonte: Our Airports CSV (coordenadas aproximadas dos principais)
-const KNOWN_AIRPORTS: { icao: string; lat: number; lng: number }[] = [
+// ── ADs conhecidos ────────────────────────────────────────
+const KNOWN_AIRPORTS = [
   {icao:'SBSP',lat:-23.626,lng:-46.656},{icao:'SBGR',lat:-23.432,lng:-46.473},
   {icao:'SBBH',lat:-19.851,lng:-43.951},{icao:'SBBR',lat:-15.871,lng:-47.918},
   {icao:'SBCF',lat:-19.624,lng:-43.972},{icao:'SBPA',lat:-29.994,lng:-51.171},
@@ -105,23 +93,25 @@ const KNOWN_AIRPORTS: { icao: string; lat: number; lng: number }[] = [
   {icao:'SBCJ',lat:-8.346,lng:-49.301},{icao:'SBUL',lat:-18.884,lng:-48.225},
   {icao:'SBGO',lat:-16.632,lng:-49.221},{icao:'SBCR',lat:-19.012,lng:-57.673},
   {icao:'SBMO',lat:-9.511,lng:-35.792},{icao:'SBNT',lat:-5.911,lng:-35.248},
-  {icao:'SBMQ',lat:0.050,lng:-51.072}, {icao:'SBBV',lat:2.841,lng:-60.692},
+  {icao:'SBMQ',lat:0.050,lng:-51.072},{icao:'SBBV',lat:2.841,lng:-60.692},
   {icao:'SBPV',lat:-8.709,lng:-63.902},{icao:'SBEG',lat:-3.038,lng:-60.050},
   {icao:'SBRB',lat:-9.869,lng:-67.898},{icao:'SBPJ',lat:-10.291,lng:-48.357},
   {icao:'SBCY',lat:-15.653,lng:-56.117},{icao:'SBCN',lat:-17.726,lng:-48.610},
   {icao:'SBLO',lat:-23.333,lng:-51.130},{icao:'SBMG',lat:-23.476,lng:-52.012},
   {icao:'SBFI',lat:-25.600,lng:-54.485},{icao:'SBUR',lat:-19.765,lng:-47.966},
   {icao:'SBTE',lat:-5.060,lng:-42.823},{icao:'SBSL',lat:-2.585,lng:-44.235},
-  {icao:'SBCX',lat:-29.197,lng:-51.188},{icao:'SBRP',lat:-21.136,lng:-47.777},
-  {icao:'SBKP',lat:-23.007,lng:-47.135},{icao:'SBSG',lat:-5.768,lng:-35.376},
-  {icao:'SBJP',lat:-7.145,lng:-34.950},{icao:'SBMK',lat:-16.706,lng:-43.819},
-  {icao:'SBIP',lat:-19.471,lng:-42.488},{icao:'SBTB',lat:-1.489,lng:-48.742},
-  {icao:'SBYA',lat:-3.856,lng:-32.394},{icao:'SBJF',lat:-21.792,lng:-43.387},
+  {icao:'SBRP',lat:-21.136,lng:-47.777},{icao:'SBKP',lat:-23.007,lng:-47.135},
+  {icao:'SBSG',lat:-5.768,lng:-35.376},{icao:'SBJP',lat:-7.145,lng:-34.950},
+  {icao:'SBMK',lat:-16.706,lng:-43.819},{icao:'SBGO',lat:-16.632,lng:-49.221},
+  {icao:'SBTB',lat:-1.489,lng:-48.742},{icao:'SBJF',lat:-21.792,lng:-43.387},
 ];
 
-// ── Mapa SVG ──────────────────────────────────────────────
+// ── Mapa Leaflet ──────────────────────────────────────────
+const CAT_COLOR: Record<string,string> = {
+  VMC:'#00e676', MVFR:'#ffab00', IFR:'#ff3d3d', LIFR:'#ff00cc',
+};
 
-interface MapProps {
+interface LeafletMapProps {
   dep: AirportCoord;
   arr: AirportCoord;
   alternates: AlternateAD[];
@@ -129,121 +119,135 @@ interface MapProps {
   selected: string | null;
 }
 
-function RouteMap({ dep, arr, alternates, onSelect, selected }: MapProps) {
-  // Projetar lat/lng para SVG (Mercator simples)
-  const W = 560, H = 240, PAD = 36;
+function LeafletMap({ dep, arr, alternates, onSelect, selected }: LeafletMapProps) {
+  const mapRef = useRef<any>(null);
+  const leafRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
 
-  const lats = [dep.lat, arr.lat, ...alternates.map(a => a.lat)];
-  const lngs = [dep.lng, arr.lng, ...alternates.map(a => a.lng)];
-  const minLat = Math.min(...lats) - 0.5;
-  const maxLat = Math.max(...lats) + 0.5;
-  const minLng = Math.min(...lngs) - 0.5;
-  const maxLng = Math.max(...lngs) + 0.5;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
-  const project = (lat: number, lng: number): [number, number] => {
-    const x = PAD + ((lng - minLng) / (maxLng - minLng)) * (W - PAD*2);
-    const y = PAD + ((maxLat - lat) / (maxLat - minLat)) * (H - PAD*2);
-    return [x, y];
-  };
+    // Carregar Leaflet dinamicamente
+    const loadLeaflet = async () => {
+      if (!document.getElementById('leaflet-css')) {
+        const link = document.createElement('link');
+        link.id = 'leaflet-css';
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+      }
 
-  const [dx, dy] = project(dep.lat, dep.lng);
-  const [ax, ay] = project(arr.lat, arr.lng);
+      const L = (await import('leaflet' as any)).default || (await import('leaflet' as any));
 
-  const CAT_COLOR: Record<string, string> = {
-    VMC: '#00e676', MVFR: '#ffab00', IFR: '#ff3d3d', LIFR: '#ff00cc',
-  };
+      if (!mapRef.current) return;
+      if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; }
+
+      // Inicializar mapa
+      const map = L.map(mapRef.current, {
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: true,
+      });
+
+      // Tile layer OpenStreetMap — estilo escuro via Stadia
+      L.tileLayer(
+        'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
+        { maxZoom: 14, minZoom: 4 }
+      ).addTo(map);
+
+      // Linha de rota tracejada
+      const routeLine = L.polyline(
+        [[dep.lat, dep.lng], [arr.lat, arr.lng]],
+        { color: '#00aaff', weight: 2, dashArray: '8 6', opacity: 0.8 }
+      ).addTo(map);
+
+      // Ícone customizado para ADs
+      const makeIcon = (color: string, size: number) => L.divIcon({
+        html: `<div style="
+          width:${size}px; height:${size}px; border-radius:50%;
+          background:${color}22; border:2px solid ${color};
+          box-shadow:0 0 6px ${color}88;
+        "></div>`,
+        className: '', iconSize: [size, size], iconAnchor: [size/2, size/2],
+      });
+
+      // Marcadores dos alternativos
+      markersRef.current = alternates.map(alt => {
+        const col = alt.cat ? (CAT_COLOR[alt.cat] || '#4a6878') : '#4a6878';
+        const marker = L.marker([alt.lat, alt.lng], { icon: makeIcon(col, 14) })
+          .addTo(map)
+          .bindTooltip(`<b style="font-family:monospace;color:${col}">${alt.icao}</b><br/>${alt.cat||'—'} · ${alt.distNM}NM`, {
+            permanent: false, direction: 'top',
+            className: 'dumont-tooltip',
+          })
+          .on('click', () => onSelect(alt.icao));
+        return marker;
+      });
+
+      // Marcador DEP
+      L.marker([dep.lat, dep.lng], { icon: makeIcon('#00d4ff', 18) })
+        .addTo(map)
+        .bindTooltip(`<b style="font-family:monospace;color:#00d4ff">${dep.icao}</b><br/>DEP`, {
+          permanent: true, direction: 'top', className: 'dumont-tooltip',
+        });
+
+      // Marcador ARR
+      L.marker([arr.lat, arr.lng], { icon: makeIcon('#00d4ff', 18) })
+        .addTo(map)
+        .bindTooltip(`<b style="font-family:monospace;color:#00d4ff">${arr.icao}</b><br/>ARR`, {
+          permanent: true, direction: 'top', className: 'dumont-tooltip',
+        });
+
+      // Ajustar zoom para mostrar toda a rota
+      const bounds = L.latLngBounds(
+        [dep.lat, dep.lng], [arr.lat, arr.lng]
+      );
+      alternates.forEach(a => bounds.extend([a.lat, a.lng]));
+      map.fitBounds(bounds, { padding: [40, 40] });
+
+      leafRef.current = map;
+    };
+
+    loadLeaflet().catch(console.warn);
+
+    return () => {
+      if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; }
+    };
+  }, [dep.icao, arr.icao]); // eslint-disable-line
+
+  // Atualizar visual do selecionado
+  useEffect(() => {
+    if (!leafRef.current) return;
+    // Recriar marcadores com tamanho diferente para o selecionado
+  }, [selected]);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className={styles.mapSvg}>
-      {/* Grid sutil */}
-      <defs>
-        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,100,160,.06)" strokeWidth="1"/>
-        </pattern>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="2" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-      <rect width={W} height={H} fill="url(#grid)" />
-
-      {/* Linha de rota tracejada */}
-      <line
-        x1={dx} y1={dy} x2={ax} y2={ay}
-        stroke="#00aaff" strokeWidth="1.5"
-        strokeDasharray="8 5" opacity="0.6"
-      />
-      {/* Sombra da linha */}
-      <line
-        x1={dx} y1={dy} x2={ax} y2={ay}
-        stroke="#00aaff" strokeWidth="4"
-        opacity="0.08"
-      />
-
-      {/* ADs alternativos */}
-      {alternates.map(alt => {
-        const [px, py] = project(alt.lat, alt.lng);
-        const col = alt.cat ? (CAT_COLOR[alt.cat] || '#4a6878') : '#4a6878';
-        const isSel = selected === alt.icao;
-        return (
-          <g key={alt.icao} onClick={() => onSelect(alt.icao)} style={{ cursor: 'pointer' }}>
-            {/* Linha pontilhada do ponto da rota ao AD */}
-            {(() => {
-              const [rx, ry] = project(
-                ...interpolate(dep.lat, dep.lng, arr.lat, arr.lng, alt.posAlongRoute)
-              );
-              return (
-                <line
-                  x1={rx} y1={ry} x2={px} y2={py}
-                  stroke={col} strokeWidth="1"
-                  strokeDasharray="3 3" opacity="0.4"
-                />
-              );
-            })()}
-            {/* Ponto */}
-            <circle cx={px} cy={py} r={isSel ? 7 : 5}
-              fill={col} fillOpacity="0.15"
-              stroke={col} strokeWidth={isSel ? 2 : 1.5}
-              filter={isSel ? 'url(#glow)' : undefined}
-            />
-            {/* Label */}
-            <text x={px} y={py - 9} textAnchor="middle"
-              fill={col} fontSize="9" fontFamily="var(--disp)"
-              letterSpacing="1"
-            >{alt.icao}</text>
-          </g>
-        );
-      })}
-
-      {/* DEP */}
-      <circle cx={dx} cy={dy} r="8" fill="#00aaff" fillOpacity="0.15"
-        stroke="#00aaff" strokeWidth="2" filter="url(#glow)" />
-      <circle cx={dx} cy={dy} r="3" fill="#00d4ff" />
-      <text x={dx} y={dy-12} textAnchor="middle"
-        fill="#00d4ff" fontSize="10" fontFamily="var(--disp)" letterSpacing="1.5">
-        {dep.icao}
-      </text>
-
-      {/* ARR */}
-      <circle cx={ax} cy={ay} r="8" fill="#00aaff" fillOpacity="0.15"
-        stroke="#00aaff" strokeWidth="2" filter="url(#glow)" />
-      <circle cx={ax} cy={ay} r="3" fill="#00d4ff" />
-      <text x={ax} y={ay-12} textAnchor="middle"
-        fill="#00d4ff" fontSize="10" fontFamily="var(--disp)" letterSpacing="1.5">
-        {arr.icao}
-      </text>
-
-      {/* Seta de direção no meio da rota */}
-      {(() => {
-        const mx = (dx+ax)/2, my = (dy+ay)/2;
-        const angle = Math.atan2(ay-dy, ax-dx) * RAD;
-        return (
-          <g transform={`translate(${mx},${my}) rotate(${angle})`}>
-            <polygon points="-6,-3 0,0 -6,3" fill="#00aaff" opacity="0.6" />
-          </g>
-        );
-      })()}
-    </svg>
+    <>
+      <style>{`
+        .dumont-tooltip {
+          background: rgba(6,10,14,.92) !important;
+          border: 1px solid #162535 !important;
+          color: #b8cdd8 !important;
+          font-family: 'Share Tech Mono', monospace !important;
+          font-size: 11px !important;
+          border-radius: 2px !important;
+          box-shadow: 0 2px 8px rgba(0,0,0,.5) !important;
+          padding: 4px 8px !important;
+        }
+        .dumont-tooltip::before { display: none !important; }
+        .leaflet-control-zoom {
+          border: 1px solid #162535 !important;
+          background: rgba(6,10,14,.9) !important;
+        }
+        .leaflet-control-zoom a {
+          background: transparent !important;
+          color: #b8cdd8 !important;
+          border-bottom: 1px solid #162535 !important;
+        }
+        .leaflet-control-zoom a:hover { background: rgba(0,170,255,.15) !important; }
+      `}</style>
+      <div ref={mapRef} className={styles.leafletMap} />
+    </>
   );
 }
 
@@ -266,181 +270,136 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
       if (dData.error) throw new Error(`DEP: ${dData.error}`);
       if (aData.error) throw new Error(`ARR: ${aData.error}`);
 
-      const dLat = parseFloat(dData.lat), dLng = parseFloat(dData.lng);
-      const aLat = parseFloat(aData.lat), aLng = parseFloat(aData.lng);
-      if (isNaN(dLat) || isNaN(aLat)) throw new Error('Coordenadas indisponíveis');
+      const dLat=parseFloat(dData.lat), dLng=parseFloat(dData.lng);
+      const aLat=parseFloat(aData.lat), aLng=parseFloat(aData.lng);
+      if (isNaN(dLat)||isNaN(aLat)) throw new Error('Coordenadas indisponíveis');
 
-      const distance = distNM(dLat, dLng, aLat, aLng);
-      const bearing  = trueBearing(dLat, dLng, aLat, aLng);
-      const decl     = await fetchDeclination((dLat+aLat)/2, (dLng+aLng)/2);
-      const heading  = (bearing - decl + 360) % 360;
+      const distance = distNM(dLat,dLng,aLat,aLng);
+      const bearing  = trueBearing(dLat,dLng,aLat,aLng);
+      const decl     = await fetchDeclination((dLat+aLat)/2,(dLng+aLng)/2);
+      const heading  = (bearing-decl+360)%360;
 
-      // Encontrar ADs alternativos próximos à rota (máx 80NM, excluindo DEP e ARR)
-      const MAX_DIST_NM = 80;
-      const altCandidates = KNOWN_AIRPORTS
+      // Alternativos na rota (80NM)
+      const alts = KNOWN_AIRPORTS
         .filter(a => a.icao !== dep && a.icao !== arr)
-        .map(a => {
-          const { dist, along } = crossTrackDist(a.lat, a.lng, dLat, dLng, aLat, aLng);
-          return { ...a, dist, along };
-        })
-        .filter(a => a.dist <= MAX_DIST_NM && a.along >= 0.05 && a.along <= 0.95)
-        .sort((a, b) => a.dist - b.dist)
-        .slice(0, 6); // máx 6 alternativos
+        .map(a => { const r=crossTrackDist(a.lat,a.lng,dLat,dLng,aLat,aLng); return {...a,...r}; })
+        .filter(a => a.dist<=80 && a.along>=0.05 && a.along<=0.95)
+        .sort((a,b) => a.dist-b.dist)
+        .slice(0,6);
 
-      // Buscar METAR de cada alternativo em paralelo
       const altWithMetar: AlternateAD[] = await Promise.all(
-        altCandidates.map(async a => {
+        alts.map(async a => {
           try {
-            const m = await fetch(`/api/metar?icao=${a.icao}`).then(r => r.json());
+            const m = await fetch(`/api/metar?icao=${a.icao}`).then(r=>r.json());
             const raw = m.metar || null;
-            let cat: string | null = null;
+            let cat: string|null = null;
             if (raw) {
               const { decodeMetar: dm, getFlightCategory: gfc } = await import('@/lib/weather/metar');
               cat = gfc(dm(raw));
             }
-            return {
-              icao: a.icao, name: a.icao,
-              lat: a.lat, lng: a.lng,
-              distNM: Math.round(a.dist),
-              posAlongRoute: a.along,
-              metar: raw, cat,
-            };
+            return { icao:a.icao, lat:a.lat, lng:a.lng,
+              distNM:Math.round(a.dist), posAlongRoute:a.along, metar:raw, cat };
           } catch {
-            return {
-              icao: a.icao, name: a.icao,
-              lat: a.lat, lng: a.lng,
-              distNM: Math.round(a.dist),
-              posAlongRoute: a.along,
-              metar: null, cat: null,
-            };
+            return { icao:a.icao, lat:a.lat, lng:a.lng,
+              distNM:Math.round(a.dist), posAlongRoute:a.along, metar:null, cat:null };
           }
         })
       );
 
       setRoute({
-        dep: { icao: dep, lat: dLat, lng: dLng, name: dData.name || dep },
-        arr: { icao: arr, lat: aLat, lng: aLng, name: aData.name || arr },
+        dep: { icao:dep, lat:dLat, lng:dLng, name:dData.name||dep },
+        arr: { icao:arr, lat:aLat, lng:aLng, name:aData.name||arr },
         distance: Math.round(distance),
-        bearing:  Math.round(bearing),
         heading:  Math.round(heading),
-        decl:     Math.round(decl * 10) / 10,
         alternates: altWithMetar,
       });
-    }).catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+    }).catch(e=>setError(e.message)).finally(()=>setLoading(false));
   }, [dep, arr]);
 
   const selectedAlt = route?.alternates.find(a => a.icao === selected);
-  const CAT_COLOR: Record<string, string> = {
-    VMC: '#00e676', MVFR: '#ffab00', IFR: '#ff3d3d', LIFR: '#ff00cc',
-  };
 
   return (
     <Panel title="ROTA" subtitle={`${dep} → ${arr}`}
-      status={loading ? 'loading' : error ? 'warn' : 'ok'}>
-      {loading && <div className={styles.msg}><span className="spin" /> Calculando rota…</div>}
+      status={loading?'loading':error?'warn':'ok'}>
+      {loading && <div className={styles.msg}><span className="spin"/> Calculando rota…</div>}
       {error   && <div className={styles.warn}>⚠ {error}</div>}
 
       {route && (
         <>
-          {/* ── Métricas ── */}
-          <div className={styles.routeGrid}>
-            <div className={[styles.cell, styles.cellHighlight].join(' ')}>
-              <span className={styles.cellLabel}>RUMO MAG</span>
-              <span className={styles.cellValue}>{fmt3(route.heading)}</span>
+          {/* ── Métricas em linha única ── */}
+          <div className={styles.metricsRow}>
+            <div className={styles.metric}>
+              <span className={styles.metricLabel}>RUMO MAG</span>
+              <span className={styles.metricVal}>{fmt3(route.heading)}</span>
             </div>
-            <div className={styles.cell}>
-              <span className={styles.cellLabel}>RUMO VERD</span>
-              <span className={styles.cellValueSec}>{fmt3(route.bearing)}</span>
-            </div>
-            <div className={[styles.cell, styles.cellDist].join(' ')}>
-              <span className={styles.cellLabel}>DISTÂNCIA</span>
-              <span className={styles.cellValue}>
+            <div className={styles.metricSep}>·</div>
+            <div className={styles.metric}>
+              <span className={styles.metricLabel}>DISTÂNCIA</span>
+              <span className={styles.metricVal}>
                 {route.distance}<span className={styles.unit}>NM</span>
               </span>
             </div>
-            <div className={styles.cell}>
-              <span className={styles.cellLabel}>DIST KM</span>
-              <span className={styles.cellValueSec}>
-                {Math.round(route.distance * 1.852)}<span className={styles.unit}>km</span>
+            <div className={styles.metricSep}>·</div>
+            <div className={styles.metric}>
+              <span className={styles.metricLabel}>KM</span>
+              <span className={styles.metricVal}>
+                {Math.round(route.distance*1.852)}<span className={styles.unit}>km</span>
               </span>
             </div>
           </div>
 
-          <div className={styles.declRow}>
-            <span className={styles.declLabel}>DECLINAÇÃO MAG</span>
-            <span className={styles.declVal}>
-              {route.decl > 0 ? `+${route.decl}°E` : `${route.decl}°W`}
-            </span>
-            <span className={styles.declSrc}>NOAA IGRF</span>
-          </div>
+          {/* ── Mapa Leaflet ── */}
+          <LeafletMap
+            dep={route.dep} arr={route.arr}
+            alternates={route.alternates}
+            onSelect={icao => setSelected(s => s===icao ? null : icao)}
+            selected={selected}
+          />
 
-          {/* ── Mapa SVG ── */}
-          <div className={styles.mapWrap}>
-            <RouteMap
-              dep={route.dep} arr={route.arr}
-              alternates={route.alternates}
-              onSelect={icao => setSelected(s => s === icao ? null : icao)}
-              selected={selected}
-            />
-          </div>
-
-          {/* ── Painel do alternativo selecionado ── */}
+          {/* ── Alternativo selecionado ── */}
           {selectedAlt && (
             <div className={styles.altDetail}>
               <div className={styles.altHeader}>
                 <span className={styles.altIcao}>{selectedAlt.icao}</span>
                 {selectedAlt.cat && (
                   <span className={styles.altCat}
-                    style={{ color: CAT_COLOR[selectedAlt.cat] || 'var(--txtd)' }}>
+                    style={{color: CAT_COLOR[selectedAlt.cat]||'var(--txtd)'}}>
                     {selectedAlt.cat}
                   </span>
                 )}
                 <span className={styles.altDist}>{selectedAlt.distNM}NM da rota</span>
-                <button className={styles.altClose} onClick={() => setSelected(null)}>✕</button>
+                <button className={styles.altClose} onClick={()=>setSelected(null)}>✕</button>
               </div>
-              {selectedAlt.metar && (
-                <pre className={styles.altMetar}>{selectedAlt.metar}</pre>
-              )}
-              {!selectedAlt.metar && (
-                <span className={styles.altNoMetar}>METAR não disponível</span>
-              )}
+              {selectedAlt.metar
+                ? <pre className={styles.altMetar}>{selectedAlt.metar}</pre>
+                : <span className={styles.altNoMetar}>METAR não disponível</span>
+              }
             </div>
           )}
 
-          {/* ── Lista de alternativos ── */}
+          {/* ── Chips de alternativos ── */}
           {route.alternates.length > 0 && (
             <div className={styles.altList}>
               <span className={styles.altListLabel}>ALTERNATIVOS NA ROTA</span>
               <div className={styles.altChips}>
                 {route.alternates.map(a => (
-                  <button
-                    key={a.icao}
-                    className={[styles.altChip, selected === a.icao ? styles.altChipSel : ''].join(' ')}
-                    onClick={() => setSelected(s => s === a.icao ? null : a.icao)}
-                    style={a.cat ? { borderColor: CAT_COLOR[a.cat] + '66' } : undefined}
+                  <button key={a.icao}
+                    className={[styles.altChip, selected===a.icao ? styles.altChipSel:''].join(' ')}
+                    onClick={()=>setSelected(s=>s===a.icao?null:a.icao)}
+                    style={a.cat ? {borderColor:CAT_COLOR[a.cat]+'55'} : undefined}
                   >
                     <span className={styles.altChipIcao}>{a.icao}</span>
-                    {a.cat && (
-                      <span className={styles.altChipCat}
-                        style={{ color: CAT_COLOR[a.cat] || 'var(--txtd)' }}>
-                        {a.cat}
-                      </span>
-                    )}
+                    {a.cat && <span className={styles.altChipCat}
+                      style={{color:CAT_COLOR[a.cat]||'var(--txtd)'}}>{a.cat}</span>}
                     <span className={styles.altChipDist}>{a.distNM}NM</span>
                   </button>
                 ))}
               </div>
             </div>
           )}
-          {route.alternates.length === 0 && (
-            <div className={styles.altEmpty}>
-              — Nenhum alternativo conhecido próximo à rota
-            </div>
-          )}
 
           <div className={styles.disclaimer}>
-            * Rumo magnético NOAA IGRF · Alternativos dentro de 80NM da rota ·
+            * Rumo magnético NOAA IGRF · Alternativos até 80NM da rota ·
             Consulte carta atualizada para planejamento operacional.
           </div>
         </>

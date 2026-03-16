@@ -1,41 +1,64 @@
 /* src/components/briefing/RoutePanel.module.css */
 
-.msg  { font-family: var(--mono); font-size: 0.85rem; display: flex; align-items: center; gap: 8px; color: var(--txtd); padding: 4px 0; }
-.warn { font-family: var(--mono); font-size: 0.85rem; color: var(--amb); padding: 4px 0; }
+.msg  { font-family:var(--mono); font-size:0.85rem; display:flex; align-items:center; gap:8px; color:var(--txtd); padding:4px 0; }
+.warn { font-family:var(--mono); font-size:0.85rem; color:var(--amb); padding:4px 0; }
 
-/* ── Métricas ─────────────────────────────────────────── */
-.routeGrid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;
-}
-.cell {
-  display: flex; flex-direction: column; gap: 3px;
-  padding: 10px 14px; background: rgba(0,0,0,.25); border: 1px solid var(--brd);
-}
-.cellHighlight { border-color: var(--brdg); background: rgba(0,170,255,.04); }
-.cellDist      { border-color: rgba(0,230,118,.2); background: rgba(0,230,118,.03); }
-
-.cellLabel     { font-family: var(--disp); font-size: 0.44rem; letter-spacing: 2px; color: var(--txtd); }
-.cellValue     { font-family: var(--disp); font-size: 1.6rem; font-weight: 700; color: var(--acc2); letter-spacing: 2px; line-height: 1; }
-.cellDist .cellValue { color: var(--grn); }
-.cellValueSec  { font-family: var(--disp); font-size: 1.2rem; font-weight: 600; color: var(--txt); letter-spacing: 2px; line-height: 1; }
-.unit          { font-size: 0.60rem; color: var(--txtd); letter-spacing: 1px; margin-left: 4px; }
-
-.declRow       { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-top: 1px solid var(--brd); font-family: var(--mono); margin-bottom: 4px; }
-.declLabel     { font-family: var(--disp); font-size: 0.44rem; letter-spacing: 1.5px; color: var(--txtd); }
-.declVal       { font-size: 0.80rem; color: var(--txtb); font-weight: 600; }
-.declSrc       { font-size: 0.58rem; color: var(--txtd); margin-left: auto; opacity: .7; }
-
-/* ── Mapa SVG ─────────────────────────────────────────── */
-.mapWrap {
-  border: 1px solid var(--brd);
-  background: rgba(0,0,0,.35);
-  overflow: hidden;
+/* ── Métricas em linha ───────────────────────────────── */
+.metricsRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--brd);
   margin-bottom: 10px;
+  flex-wrap: wrap;
 }
-.mapSvg {
+
+.metric {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.metricLabel {
+  font-family: var(--disp);
+  font-size: 0.42rem;
+  letter-spacing: 2px;
+  color: var(--txtd);
+}
+
+.metricVal {
+  font-family: var(--disp);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--acc2);
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.metric:nth-child(3) .metricVal { color: var(--grn); }
+
+.unit {
+  font-size: 0.55rem;
+  color: var(--txtd);
+  letter-spacing: 1px;
+  margin-left: 3px;
+}
+
+.metricSep {
+  color: var(--brdg);
+  font-size: 1rem;
+  line-height: 1;
+  opacity: .5;
+}
+
+/* ── Mapa Leaflet ────────────────────────────────────── */
+.leafletMap {
   width: 100%;
-  height: auto;
-  display: block;
+  height: 280px;
+  border: 1px solid var(--brd);
+  margin-bottom: 10px;
+  background: #0a1018;
 }
 
 /* ── Alternativo selecionado ─────────────────────────── */
@@ -47,56 +70,54 @@
   animation: fadeUp .2s ease;
 }
 .altHeader {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 6px; flex-wrap: wrap;
 }
-.altIcao  { font-family: var(--disp); font-size: 0.88rem; letter-spacing: 2px; color: var(--acc2); }
-.altCat   { font-family: var(--disp); font-size: 0.58rem; letter-spacing: 2px; font-weight: 700; }
-.altDist  { font-family: var(--mono); font-size: 0.68rem; color: var(--txtd); margin-left: auto; }
+.altIcao  { font-family:var(--disp); font-size:0.88rem; letter-spacing:2px; color:var(--acc2); }
+.altCat   { font-family:var(--disp); font-size:0.58rem; letter-spacing:2px; font-weight:700; }
+.altDist  { font-family:var(--mono); font-size:0.68rem; color:var(--txtd); margin-left:auto; }
 .altClose {
-  background: none; border: 1px solid var(--brd); color: var(--txtd);
-  width: 20px; height: 20px; cursor: pointer; font-size: 0.6rem;
-  display: flex; align-items: center; justify-content: center;
+  background:none; border:1px solid var(--brd); color:var(--txtd);
+  width:20px; height:20px; cursor:pointer; font-size:0.6rem;
+  display:flex; align-items:center; justify-content:center;
 }
-.altClose:hover { border-color: var(--txtd); }
+.altClose:hover { border-color:var(--txtd); }
 .altMetar {
-  font-family: var(--mono); font-size: 0.68rem; color: var(--txt);
-  white-space: pre-wrap; word-break: break-word; line-height: 1.6;
+  font-family:var(--mono); font-size:0.68rem; color:var(--txt);
+  white-space:pre-wrap; word-break:break-word; line-height:1.6;
 }
-.altNoMetar { font-family: var(--mono); font-size: 0.72rem; color: var(--txtd); }
+.altNoMetar { font-family:var(--mono); font-size:0.72rem; color:var(--txtd); }
 
 /* ── Lista de alternativos ───────────────────────────── */
 .altList { margin-bottom: 8px; }
 .altListLabel {
-  font-family: var(--disp); font-size: 0.44rem; letter-spacing: 2px;
-  color: var(--txtd); display: block; margin-bottom: 6px;
+  font-family:var(--disp); font-size:0.44rem; letter-spacing:2px;
+  color:var(--txtd); display:block; margin-bottom:6px;
 }
-.altChips { display: flex; flex-wrap: wrap; gap: 6px; }
+.altChips { display:flex; flex-wrap:wrap; gap:6px; }
 .altChip {
-  display: flex; align-items: center; gap: 6px;
-  padding: 4px 10px;
-  background: rgba(0,0,0,.25); border: 1px solid var(--brd);
-  cursor: pointer; transition: all .15s; font-family: var(--mono);
+  display:flex; align-items:center; gap:6px;
+  padding:4px 10px;
+  background:rgba(0,0,0,.25); border:1px solid var(--brd);
+  cursor:pointer; transition:all .15s;
 }
-.altChip:hover    { background: rgba(0,170,255,.08); border-color: var(--acc); }
-.altChipSel       { background: rgba(0,170,255,.1); border-color: var(--acc) !important; }
-.altChipIcao      { font-family: var(--disp); font-size: 0.55rem; letter-spacing: 1.5px; color: var(--txtb); }
-.altChipCat       { font-family: var(--disp); font-size: 0.48rem; letter-spacing: 1.5px; font-weight: 700; }
-.altChipDist      { font-size: 0.62rem; color: var(--txtd); }
-
-.altEmpty { font-family: var(--mono); font-size: 0.72rem; color: var(--txtd); padding: 4px 0; }
+.altChip:hover    { background:rgba(0,170,255,.08); border-color:var(--acc); }
+.altChipSel       { background:rgba(0,170,255,.1); border-color:var(--acc)!important; }
+.altChipIcao      { font-family:var(--disp); font-size:0.55rem; letter-spacing:1.5px; color:var(--txtb); }
+.altChipCat       { font-family:var(--disp); font-size:0.48rem; letter-spacing:1.5px; font-weight:700; }
+.altChipDist      { font-family:var(--mono); font-size:0.62rem; color:var(--txtd); }
 
 .disclaimer {
-  font-family: var(--mono); font-size: 0.58rem; color: var(--txtd);
-  line-height: 1.5; opacity: .7;
+  font-family:var(--mono); font-size:0.58rem;
+  color:var(--txtd); line-height:1.5; opacity:.7;
 }
 
 /* ── Mobile ──────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .cellValue    { font-size: 1.3rem; }
-  .cellValueSec { font-size: 1.0rem; }
-  .cellLabel    { font-size: 0.52rem; }
-  .disclaimer   { font-size: var(--fs-xs-m); }
-  .declVal      { font-size: var(--fs-md-m); }
+  .leafletMap   { height: 220px; }
+  .metricVal    { font-size: 1rem; }
+  .metricLabel  { font-size: 0.50rem; }
   .altChipIcao  { font-size: var(--fs-sm-m); }
   .altMetar     { font-size: var(--fs-sm-m); }
+  .disclaimer   { font-size: var(--fs-xs-m); }
 }
