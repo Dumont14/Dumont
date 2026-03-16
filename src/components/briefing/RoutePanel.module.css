@@ -61,6 +61,11 @@
   background: #0a1018;
 }
 
+/* Inverter tiles OSM para tema dark */
+.leafletMap :global(.leaflet-tile-pane) {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+}
+
 /* ── Alternativo selecionado ─────────────────────────── */
 .altDetail {
   border: 1px solid var(--brdg);
