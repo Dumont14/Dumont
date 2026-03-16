@@ -56,8 +56,9 @@
 }
 
 @keyframes catPulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.65; }
+  0%,
+  100% { opacity: 1; }
+  50%  { opacity: 0.65; }
 }
 
 .catBarIcon { font-size: 0.85rem; line-height: 1; }
@@ -531,6 +532,7 @@
   .metarRow    {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+    grid-auto-flow: row;
     gap: 6px 12px;
     padding: 4px 0;
   }
