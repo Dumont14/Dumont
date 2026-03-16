@@ -30,8 +30,8 @@
 
 .label {
   font-family: var(--disp);
-  font-size: 0.44rem;
-  letter-spacing: 2px;
+  font-size: 0.68rem;
+  letter-spacing: 1px;
   color: var(--txtd);
   padding: 2px 6px;
   border: 1px solid var(--brd);
@@ -68,7 +68,7 @@
 
 .speciBadge {
   font-family: var(--disp);
-  font-size: 0.44rem;
+  font-size: 0.62rem;
   letter-spacing: 1.5px;
   color: var(--amb);
   padding: 2px 6px;
@@ -130,8 +130,8 @@
 
 .metLabel {
   font-family: var(--disp);
-  font-size: 0.40rem;
-  letter-spacing: 1.5px;
+  font-size: 0.65rem;
+  letter-spacing: 1px;
   color: var(--txtd);
 }
 
@@ -152,12 +152,12 @@
 
 .sectionLabel {
   font-family: var(--disp);
-  font-size: 0.44rem;
-  letter-spacing: 2px;
+  font-size: 0.65rem;
+  letter-spacing: 1.5px;
   color: var(--txtd);
-  padding-top: 3px;
+  padding-top: 2px;
   flex-shrink: 0;
-  min-width: 44px;
+  min-width: 50px;
 }
 
 .okText  { font-family: var(--mono); font-size: 0.78rem; color: var(--grn); }
@@ -177,7 +177,7 @@
 
 .tafType {
   font-family: var(--disp);
-  font-size: 0.44rem;
+  font-size: 0.62rem;
   letter-spacing: 1.5px;
   color: var(--txtd);
 }
@@ -228,7 +228,7 @@
 
 .notamCritBadge {
   font-family: var(--disp);
-  font-size: 0.44rem;
+  font-size: 0.62rem;
   letter-spacing: 1.5px;
   padding: 2px 5px;
   color: var(--red);
@@ -239,7 +239,7 @@
 
 .notamCat {
   font-family: var(--disp);
-  font-size: 0.48rem;
+  font-size: 0.65rem;
   letter-spacing: 1.5px;
   color: var(--txtd);
   flex-shrink: 0;
@@ -248,7 +248,7 @@
 
 .notamNum {
   font-family: var(--disp);
-  font-size: 0.48rem;
+  font-size: 0.65rem;
   letter-spacing: 1.5px;
   color: var(--acc);
   flex-shrink: 0;
@@ -338,8 +338,8 @@
 
 .freqType {
   font-family: var(--disp);
-  font-size: 0.42rem;
-  letter-spacing: 1.5px;
+  font-size: 0.62rem;
+  letter-spacing: 1px;
   color: var(--txtd);
 }
 
@@ -370,16 +370,16 @@
 /* ── Botão Ver Detalhes ──────────────────────────────── */
 .detailsBtn {
   font-family: var(--disp);
-  font-size: 0.44rem;
-  letter-spacing: 2px;
+  font-size: 0.65rem;
+  letter-spacing: 1px;
   color: var(--txtd);
   background: none;
   border: 1px solid var(--brd);
-  padding: 5px 0;
+  padding: 8px 0;
   cursor: pointer;
   width: 100%;
   transition: all .15s;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 .detailsBtn:hover {
   border-color: var(--acc);
@@ -399,8 +399,8 @@
 
 .detailTitle {
   font-family: var(--disp);
-  font-size: 0.44rem;
-  letter-spacing: 2px;
+  font-size: 0.68rem;
+  letter-spacing: 1px;
   color: var(--acc);
   padding-bottom: 4px;
   border-bottom: 1px solid var(--brd);
@@ -431,7 +431,16 @@
   gap: 8px;
 }
 
-.badge_crit { @extend .notamCritBadge; }
+.badge_crit {
+  font-family: var(--disp);
+  font-size: 0.62rem;
+  letter-spacing: 1.5px;
+  padding: 2px 5px;
+  color: var(--red);
+  background: rgba(255,61,61,.15);
+  border: 1px solid rgba(255,61,61,.4);
+  flex-shrink: 0;
+}
 .badge_warn {
   font-family: var(--disp); font-size: 0.44rem; letter-spacing: 1.5px;
   padding: 2px 5px; color: var(--amb);
@@ -461,7 +470,7 @@
 
 /* ── Mobile ──────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .card        { padding: 14px; gap: 10px; }
+  .card        { padding: 16px; gap: 14px; }
   .icao        { font-size: 1rem; }
   .adName      { font-size: 0.78rem; }
   .metItem     { font-size: var(--fs-md-m); }

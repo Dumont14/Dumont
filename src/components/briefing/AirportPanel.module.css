@@ -25,7 +25,7 @@
   display: flex; gap: 12px; flex-wrap: wrap;
 }
 .meta {
-  font-family: var(--disp); font-size: 0.48rem;
+  font-family: var(--disp); font-size: 0.62rem;
   letter-spacing: 1.5px; color: var(--txtd);
   padding: 2px 6px; border: 1px solid var(--brd);
 }
@@ -42,14 +42,14 @@
 .atsClosed  { border-color: var(--red); background: rgba(255,61,61,.08); }
 
 .atsLabel {
-  font-family: var(--disp); font-size: 0.48rem;
+  font-family: var(--disp); font-size: 0.65rem;
   letter-spacing: 2px; color: var(--txtd);
 }
 .atsVal {
   font-size: 0.78rem; color: var(--txtb); flex: 1;
 }
 .atsClosed {
-  font-family: var(--disp); font-size: 0.48rem;
+  font-family: var(--disp); font-size: 0.62rem;
   letter-spacing: 1.5px; color: var(--red);
   padding: 2px 6px; border: 1px solid rgba(255,61,61,.35);
   background: rgba(255,61,61,.1);
@@ -60,7 +60,7 @@
 .section:last-child { margin-bottom: 0; }
 
 .sectionTitle {
-  font-family: var(--disp); font-size: 0.52rem;
+  font-family: var(--disp); font-size: 0.68rem;
   letter-spacing: 2px; color: var(--acc);
   margin-bottom: 8px; padding-bottom: 4px;
   border-bottom: 1px solid var(--brd);
@@ -79,7 +79,7 @@
   font-family: var(--mono);
 }
 .freqType {
-  font-family: var(--disp); font-size: 0.52rem;
+  font-family: var(--disp); font-size: 0.62rem;
   letter-spacing: 1.5px; color: var(--txtd);
 }
 .freqMhz {
@@ -106,15 +106,15 @@
 .rwyRow.rwyClosed { border-color: rgba(255,61,61,.3); opacity: .7; }
 
 .rwyIdent {
-  font-family: var(--disp); font-size: 0.75rem;
-  letter-spacing: 2px; color: var(--txtb);
+  font-family: var(--disp); font-size: 0.82rem;
+  letter-spacing: 1px; color: var(--txtb);
 }
 .rwyLen   { font-size: 0.78rem; color: var(--txt); }
 .rwyWidth { font-size: 0.68rem; color: var(--txtd); }
 .rwySurf  { font-size: 0.68rem; color: var(--txtd); text-align: right; }
 
 .rwyClosedBadge {
-  font-family: var(--disp); font-size: 0.44rem;
+  font-family: var(--disp); font-size: 0.62rem;
   letter-spacing: 1.5px; color: var(--red);
   background: rgba(255,61,61,.12);
   border: 1px solid rgba(255,61,61,.3);

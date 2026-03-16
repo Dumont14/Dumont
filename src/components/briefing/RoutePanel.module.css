@@ -22,8 +22,8 @@
 
 .metricLabel {
   font-family: var(--disp);
-  font-size: 0.42rem;
-  letter-spacing: 2px;
+  font-size: 0.62rem;
+  letter-spacing: 1.5px;
   color: var(--txtd);
 }
 
@@ -79,7 +79,7 @@
   margin-bottom: 6px; flex-wrap: wrap;
 }
 .altIcao  { font-family:var(--disp); font-size:0.88rem; letter-spacing:2px; color:var(--acc2); }
-.altCat   { font-family:var(--disp); font-size:0.58rem; letter-spacing:2px; font-weight:700; }
+.altCat   { font-family:var(--disp); font-size:0.65rem; letter-spacing:1.5px; font-weight:700; }
 .altDist  { font-family:var(--mono); font-size:0.68rem; color:var(--txtd); margin-left:auto; }
 .altClose {
   background:none; border:1px solid var(--brd); color:var(--txtd);
@@ -96,7 +96,7 @@
 /* ── Lista de alternativos ───────────────────────────── */
 .altList { margin-bottom: 8px; }
 .altListLabel {
-  font-family:var(--disp); font-size:0.44rem; letter-spacing:2px;
+  font-family:var(--disp); font-size:0.65rem; letter-spacing:1.5px;
   color:var(--txtd); display:block; margin-bottom:6px;
 }
 .altChips { display:flex; flex-wrap:wrap; gap:6px; }
@@ -108,9 +108,9 @@
 }
 .altChip:hover    { background:rgba(0,170,255,.08); border-color:var(--acc); }
 .altChipSel       { background:rgba(0,170,255,.1); border-color:var(--acc)!important; }
-.altChipIcao      { font-family:var(--disp); font-size:0.55rem; letter-spacing:1.5px; color:var(--txtb); }
-.altChipCat       { font-family:var(--disp); font-size:0.48rem; letter-spacing:1.5px; font-weight:700; }
-.altChipDist      { font-family:var(--mono); font-size:0.62rem; color:var(--txtd); }
+.altChipIcao      { font-family:var(--disp); font-size:0.65rem; letter-spacing:1px; color:var(--txtb); }
+.altChipCat       { font-family:var(--disp); font-size:0.62rem; letter-spacing:1px; font-weight:700; }
+.altChipDist      { font-family:var(--mono); font-size:0.68rem; color:var(--txtd); }
 
 .disclaimer {
   font-family:var(--mono); font-size:0.58rem;

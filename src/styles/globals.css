@@ -24,20 +24,20 @@
   --radius-clip: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
 
   /* ── TIPOGRAFIA BASE ──────────────────────────────── */
-  --fs-xs:   0.72rem;   /* timestamps, labels secundários */
-  --fs-sm:   0.80rem;   /* labels, badges, categorias */
-  --fs-md:   0.90rem;   /* dados operacionais, METAR raw */
-  --fs-lg:   1.05rem;   /* valores principais, categoria voo */
-  --fs-xl:   1.20rem;   /* títulos de painel */
-  --fs-disp: 1.10rem;   /* logo, display principal */
+  --fs-xs:   0.65rem;   /* timestamps, labels secundários (aumentado de 0.72rem/0.4rem usage) */
+  --fs-sm:   0.78rem;   /* labels, badges, categorias */
+  --fs-md:   0.92rem;   /* dados operacionais, METAR raw */
+  --fs-lg:   1.08rem;   /* valores principais, categoria voo */
+  --fs-xl:   1.25rem;   /* títulos de painel */
+  --fs-disp: 1.15rem;   /* logo, display principal */
 
-  /* Mobile — aumentar 15% */
-  --fs-xs-m:   0.82rem;
+  /* Mobile — aumentar legibilidade */
+  --fs-xs-m:   0.80rem;
   --fs-sm-m:   0.92rem;
-  --fs-md-m:   1.02rem;
-  --fs-lg-m:   1.18rem;
-  --fs-xl-m:   1.32rem;
-  --fs-disp-m: 1.25rem;
+  --fs-md-m:   1.05rem;
+  --fs-lg-m:   1.22rem;
+  --fs-xl-m:   1.38rem;
+  --fs-disp-m: 1.30rem;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
