@@ -17,6 +17,9 @@ const IGNORE_WORDS = new Set([
   'THIS','THAT','HAVE','WILL','WOULD','COULD','SHOULD',
   'WIND','VENTO','TETO','CEILING','VISIBILITY','VISIBILIDADE',
   'ROTA','PARA','SAINDO','INDO','POUSANDO','RESUMO',
+  // Prefixos de cidades (evita extrair "BELO" como ICAO)
+  'BELO','SANTO','PORTO','SAO','CAMPO','FOZ','BOA','CAXIAS',
+  'JUAZEIRO','CAMPINA','CRUZEIRO','FERNANDO','CABO',
 ]);
 
 /** ICAO phonetic alphabet map */
@@ -36,7 +39,7 @@ const CITY_TO_ICAO: Record<string, string> = {
   CONGONHAS: 'SBSP',
   GALEAO: 'SBGL',
   'SANTOS DUMONT': 'SBRJ',
-  'BELO HORIZONTE': 'SBBH', // ou SBPB conforme o plano de voo
+  'BELO HORIZONTE': 'SBBH',
   VITORIA: 'SBVT',
   CAMPINAS: 'SBKP',
   'RIBEIRAO PRETO': 'SBRP',
@@ -100,7 +103,7 @@ const CITY_TO_ICAO: Record<string, string> = {
   GOIANIA: 'SBGO',
   'CAMPO GRANDE': 'SBCG',
   SINOP: 'SWSI',
-  RONDONOPOLIS: 'SWRD', // Atualmente SWRD (público) ou SBRO
+  RONDONOPOLIS: 'SWRD',
   ANAPOLIS: 'SBAN',
 
   // ILHAS E OUTROS
@@ -117,7 +120,7 @@ const INTENT_KEYWORDS: Record<string, RegExp> = {
   wind:       /\b(VENTO|WIND)\b/,
   visibility: /\b(VISIBILIDADE|VISIBILITY)\b/,
   ceiling:    /\b(TETO|CEILING)\b/,
-  briefing:   /\b(BRIEFING|RESUMO|STATUS)\b/,
+  briefing:   /\b(BRIEFING|RESUMO|STATUS|CONDICOES|CONDITIONS)\b/,
 };
 
 // ---------------------------------------------------------------------------
@@ -152,11 +155,8 @@ function normalize(text: string): string {
  * Handles 3-letter (FAA) and 4-letter sequences.
  */
 function collapseSpacedLetters(t: string): string {
-  // Web Speech API sometimes returns "S. B. S. P." — strip dots before collapsing
   t = t.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
-  // 4-letter sequence: S B S P → SBSP
   t = t.replace(/\b([A-Z])\s+([A-Z])\s+([A-Z])\s+([A-Z])\b/g, '$1$2$3$4');
-  // 3-letter sequence: K J F → KJF
   t = t.replace(/\b([A-Z])\s+([A-Z])\s+([A-Z])\b/g, '$1$2$3');
   return t;
 }
@@ -164,6 +164,7 @@ function collapseSpacedLetters(t: string): string {
 /**
  * Step 3 — Extract direct ICAO codes (3–4 uppercase letters, not ignored,
  * not all-vowels).
+ * CORREÇÃO: Também ignora ICAOs que aparecem após cidades (ex: "BELO" em "BELO HORIZONTE")
  */
 function extractIcaos(t: string): string[] {
   const VOWELS_ONLY = /^[AEIOU]+$/;
@@ -181,12 +182,9 @@ function extractIcaos(t: string): string[] {
 
 /**
  * Step 4 — Parse phonetic alphabet sequences into ICAO codes.
- * Only emits a code when exactly 4 consecutive phonetic tokens are found,
- * which matches the standard 4-letter ICAO format and avoids partial codes.
- * Handles punctuation/pauses between tokens (commas, dots, ellipsis).
+ * Only emits a code when exactly 4 consecutive phonetic tokens are found.
  */
 function parsePhoneticIcao(t: string): string[] {
-  // Split on spaces and common separators
   const words = t.split(/[\s,.\u2026]+/);
   const icaos: string[] = [];
   let spelled = '';
@@ -194,35 +192,43 @@ function parsePhoneticIcao(t: string): string[] {
   for (const w of words) {
     if (PHONETIC[w]) {
       spelled += PHONETIC[w];
-      // Flush only when exactly 4 phonetic letters accumulated
       if (spelled.length === 4) {
         icaos.push(spelled);
         spelled = '';
       }
     } else {
-      // Non-phonetic word — discard partial (< 4) to avoid false codes
       spelled = '';
     }
   }
-
-  // Remaining letters after end of input — discard if not exactly 4
-  // (strict mode: ICAO is always 4 letters)
 
   return icaos;
 }
 
 /**
- * Step 5 — Resolve city names to ICAO codes when no direct ICAO was found.
- * Uses word-boundary regex to avoid false positives (e.g. "MANAUS" inside "XMANAUSTRIP").
+ * Step 5 — Resolve city names to ICAO codes.
+ * CORREÇÃO CRÍTICA: Ordena cidades por tamanho (nomes compostos primeiro)
+ * para evitar match parcial. Ex: "BELO HORIZONTE" antes de "BELO"
  */
 function resolveCity(t: string): string[] {
   const icaos: string[] = [];
 
-  for (const [city, icao] of Object.entries(CITY_TO_ICAO)) {
-    // Escape spaces in multi-word cities (e.g. "PORTO VELHO") for regex safety
-    const escaped = city.replace(/ /g, '\\s+');
-    if (new RegExp(`\\b${escaped}\\b`).test(t)) {
+  // Ordena cidades por tamanho (maior primeiro) para evitar matches parciais
+  const sortedCities = Object.entries(CITY_TO_ICAO)
+    .sort((a, b) => b[0].length - a[0].length);
+
+  for (const [city, icao] of sortedCities) {
+    // Cria regex com word boundaries para cada palavra
+    const words = city.split(' ');
+    const escaped = words
+      .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('\\s+');
+    
+    const pattern = new RegExp(`\\b${escaped}\\b`, 'i');
+    
+    if (pattern.test(t)) {
       icaos.push(icao);
+      // Remove da string para evitar matches duplicados
+      t = t.replace(pattern, '');
     }
   }
 
@@ -257,9 +263,8 @@ function isValidIcao(code: string): boolean {
 }
 
 /**
- * Levenshtein distance between two strings (no external deps).
+ * Levenshtein distance between two strings.
  * Used to correct single-character Web Speech transcription errors.
- * Example: SBGP → SBGR (distance = 1)
  */
 function levenshtein(a: string, b: string): number {
   const m = a.length, n = b.length;
@@ -275,10 +280,7 @@ function levenshtein(a: string, b: string): number {
 }
 
 /**
- * Attempt to correct a single ICAO code that is one edit away from
- * another candidate in the detected list. Helps recover from Web Speech
- * transcription errors (e.g. SBGP → SBGR when SBGR is also detected).
- * Only corrects when exactly one candidate is at distance 1.
+ * Attempt to correct a single ICAO code that is one edit away from another.
  */
 function correctIcao(code: string, candidates: string[]): string {
   const others = candidates.filter(c => c !== code && isValidIcao(c));
@@ -326,15 +328,15 @@ export function parseVoiceIntent(text: string): ParsedIntent | null {
 
   // 3. Collect ICAO candidates from multiple sources
   const directIcaos   = extractIcaos(collapsed);
-  const phoneticIcaos = parsePhoneticIcao(t);      // run on original normalized text
+  const phoneticIcaos = parsePhoneticIcao(t);
 
   // Merge, deduplicate, preserve order
   const all    = [...directIcaos, ...phoneticIcaos];
   let   unique = [...new Set(all)].filter(isValidIcao);
 
-  // Apply Levenshtein typo correction (fixes Web Speech 1-char errors, e.g. SBGP→SBGR)
+  // Apply Levenshtein typo correction
   unique = unique.map(code => correctIcao(code, unique));
-  unique = [...new Set(unique)]; // re-deduplicate after correction
+  unique = [...new Set(unique)];
 
   // Prioritize Brazilian airports as dep candidate
   unique = prioritizeBrazilian(unique);
