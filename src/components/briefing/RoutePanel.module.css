@@ -1,121 +1,102 @@
 /* src/components/briefing/RoutePanel.module.css */
 
-.msg  {
-  font-family: var(--mono); font-size: 0.85rem;
-  display: flex; align-items: center; gap: 8px;
-  color: var(--txtd); padding: 4px 0;
-}
-.warn {
-  font-family: var(--mono); font-size: 0.85rem;
-  color: var(--amb); padding: 4px 0;
-}
+.msg  { font-family: var(--mono); font-size: 0.85rem; display: flex; align-items: center; gap: 8px; color: var(--txtd); padding: 4px 0; }
+.warn { font-family: var(--mono); font-size: 0.85rem; color: var(--amb); padding: 4px 0; }
 
+/* ── Métricas ─────────────────────────────────────────── */
 .routeGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 8px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;
 }
-
 .cell {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px 14px;
-  background: rgba(0,0,0,.25);
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 10px 14px; background: rgba(0,0,0,.25); border: 1px solid var(--brd);
+}
+.cellHighlight { border-color: var(--brdg); background: rgba(0,170,255,.04); }
+.cellDist      { border-color: rgba(0,230,118,.2); background: rgba(0,230,118,.03); }
+
+.cellLabel     { font-family: var(--disp); font-size: 0.44rem; letter-spacing: 2px; color: var(--txtd); }
+.cellValue     { font-family: var(--disp); font-size: 1.6rem; font-weight: 700; color: var(--acc2); letter-spacing: 2px; line-height: 1; }
+.cellDist .cellValue { color: var(--grn); }
+.cellValueSec  { font-family: var(--disp); font-size: 1.2rem; font-weight: 600; color: var(--txt); letter-spacing: 2px; line-height: 1; }
+.unit          { font-size: 0.60rem; color: var(--txtd); letter-spacing: 1px; margin-left: 4px; }
+
+.declRow       { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-top: 1px solid var(--brd); font-family: var(--mono); margin-bottom: 4px; }
+.declLabel     { font-family: var(--disp); font-size: 0.44rem; letter-spacing: 1.5px; color: var(--txtd); }
+.declVal       { font-size: 0.80rem; color: var(--txtb); font-weight: 600; }
+.declSrc       { font-size: 0.58rem; color: var(--txtd); margin-left: auto; opacity: .7; }
+
+/* ── Mapa SVG ─────────────────────────────────────────── */
+.mapWrap {
   border: 1px solid var(--brd);
+  background: rgba(0,0,0,.35);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.mapSvg {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
-.cellHighlight {
-  border-color: var(--brdg);
+/* ── Alternativo selecionado ─────────────────────────── */
+.altDetail {
+  border: 1px solid var(--brdg);
   background: rgba(0,170,255,.04);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  animation: fadeUp .2s ease;
 }
+.altHeader {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.altIcao  { font-family: var(--disp); font-size: 0.88rem; letter-spacing: 2px; color: var(--acc2); }
+.altCat   { font-family: var(--disp); font-size: 0.58rem; letter-spacing: 2px; font-weight: 700; }
+.altDist  { font-family: var(--mono); font-size: 0.68rem; color: var(--txtd); margin-left: auto; }
+.altClose {
+  background: none; border: 1px solid var(--brd); color: var(--txtd);
+  width: 20px; height: 20px; cursor: pointer; font-size: 0.6rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.altClose:hover { border-color: var(--txtd); }
+.altMetar {
+  font-family: var(--mono); font-size: 0.68rem; color: var(--txt);
+  white-space: pre-wrap; word-break: break-word; line-height: 1.6;
+}
+.altNoMetar { font-family: var(--mono); font-size: 0.72rem; color: var(--txtd); }
 
-.cellDist {
-  border-color: rgba(0,230,118,.2);
-  background: rgba(0,230,118,.03);
+/* ── Lista de alternativos ───────────────────────────── */
+.altList { margin-bottom: 8px; }
+.altListLabel {
+  font-family: var(--disp); font-size: 0.44rem; letter-spacing: 2px;
+  color: var(--txtd); display: block; margin-bottom: 6px;
 }
+.altChips { display: flex; flex-wrap: wrap; gap: 6px; }
+.altChip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  background: rgba(0,0,0,.25); border: 1px solid var(--brd);
+  cursor: pointer; transition: all .15s; font-family: var(--mono);
+}
+.altChip:hover    { background: rgba(0,170,255,.08); border-color: var(--acc); }
+.altChipSel       { background: rgba(0,170,255,.1); border-color: var(--acc) !important; }
+.altChipIcao      { font-family: var(--disp); font-size: 0.55rem; letter-spacing: 1.5px; color: var(--txtb); }
+.altChipCat       { font-family: var(--disp); font-size: 0.48rem; letter-spacing: 1.5px; font-weight: 700; }
+.altChipDist      { font-size: 0.62rem; color: var(--txtd); }
 
-.cellLabel {
-  font-family: var(--disp);
-  font-size: 0.44rem;
-  letter-spacing: 2px;
-  color: var(--txtd);
-}
-
-.cellValue {
-  font-family: var(--disp);
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: var(--acc2);
-  letter-spacing: 2px;
-  line-height: 1;
-}
-
-.cellDist .cellValue {
-  color: var(--grn);
-}
-
-.cellValueSec {
-  font-family: var(--disp);
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--txt);
-  letter-spacing: 2px;
-  line-height: 1;
-}
-
-.unit {
-  font-size: 0.60rem;
-  color: var(--txtd);
-  letter-spacing: 1px;
-  margin-left: 4px;
-}
-
-/* Declinação */
-.declRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 0;
-  margin-bottom: 4px;
-  font-family: var(--mono);
-  border-top: 1px solid var(--brd);
-}
-
-.declLabel {
-  font-family: var(--disp);
-  font-size: 0.44rem;
-  letter-spacing: 1.5px;
-  color: var(--txtd);
-}
-
-.declVal {
-  font-size: 0.80rem;
-  color: var(--txtb);
-  font-weight: 600;
-}
-
-.declSrc {
-  font-size: 0.58rem;
-  color: var(--txtd);
-  margin-left: auto;
-  opacity: .7;
-}
+.altEmpty { font-family: var(--mono); font-size: 0.72rem; color: var(--txtd); padding: 4px 0; }
 
 .disclaimer {
-  font-family: var(--mono);
-  font-size: 0.58rem;
-  color: var(--txtd);
-  line-height: 1.5;
-  opacity: .7;
+  font-family: var(--mono); font-size: 0.58rem; color: var(--txtd);
+  line-height: 1.5; opacity: .7;
 }
 
-/* Mobile */
+/* ── Mobile ──────────────────────────────────────────── */
 @media (max-width: 900px) {
   .cellValue    { font-size: 1.3rem; }
   .cellValueSec { font-size: 1.0rem; }
   .cellLabel    { font-size: 0.52rem; }
   .disclaimer   { font-size: var(--fs-xs-m); }
   .declVal      { font-size: var(--fs-md-m); }
+  .altChipIcao  { font-size: var(--fs-sm-m); }
+  .altMetar     { font-size: var(--fs-sm-m); }
 }
