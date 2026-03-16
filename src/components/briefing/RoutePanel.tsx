@@ -150,9 +150,10 @@ function LeafletMap({ dep, arr, alternates, onSelect, selected }: LeafletMapProp
       });
 
       // Tile layer OpenStreetMap — estilo escuro via Stadia
+      // Tile OpenStreetMap — gratuito, sem autenticação
       L.tileLayer(
-        'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
-        { maxZoom: 14, minZoom: 4 }
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        { maxZoom: 18, minZoom: 3, opacity: 0.6 }
       ).addTo(map);
 
       // Linha de rota tracejada
@@ -319,7 +320,9 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
   const selectedAlt = route?.alternates.find(a => a.icao === selected);
 
   return (
-    <Panel title="ROTA" subtitle={`${dep} → ${arr}`}
+    <Panel
+      title="ROTA"
+      subtitle={route ? `${dep} → ${arr}  |  ${Math.round(route.distance*1.852)}km` : `${dep} → ${arr}`}
       status={loading?'loading':error?'warn':'ok'}>
       {loading && <div className={styles.msg}><span className="spin"/> Calculando rota…</div>}
       {error   && <div className={styles.warn}>⚠ {error}</div>}
