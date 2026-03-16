@@ -16,6 +16,7 @@ interface UseDumontReturn {
   result:       DumontResult | null;
   activate:     () => void;
   stop:         () => void;
+  clearResult:  () => void;   // ← NOVO: limpa result sem parar o assistente
   replay:       () => void;
   isSupported:  boolean;
   wakeEnabled:  boolean;
@@ -31,9 +32,9 @@ export function useDumont(): UseDumontReturn {
   const [isSupported, setIsSupported] = useState(false);
   const [wakeEnabled, setWakeEnabled] = useState(false);
 
-  const recogRef     = useRef<any>(null);
-  const porcupineRef = useRef<any>(null);
-  const stateRef     = useRef<DumontState>('idle');
+  const recogRef      = useRef<any>(null);
+  const porcupineRef  = useRef<any>(null);
+  const stateRef      = useRef<DumontState>('idle');
   const wakeRecogRef  = useRef<any>(null);
   const wakeActiveRef = useRef(false);
 
@@ -165,24 +166,19 @@ export function useDumont(): UseDumontReturn {
     if (porcupineRef.current) return;
     try {
       const { PorcupineWorker } = await import('@picovoice/porcupine-web');
-
       const ppnRes  = await fetch(PORCUPINE_MODEL_URL);
       const ppnBuf  = await ppnRes.arrayBuffer();
       const ppnData = new Uint8Array(ppnBuf);
       const b64     = btoa(ppnData.reduce((s, b) => s + String.fromCharCode(b), ''));
-
       const porcupine = await PorcupineWorker.create(
         PORCUPINE_ACCESS_KEY,
-        // keyword
         [{ base64: b64, sensitivity: 0.7, label: 'dumont' }],
-        // detection callback
         () => {
           console.log('[Porcupine] Dumont detectado!');
           // @ts-ignore
           try { porcupine.pause(); } catch {}
           startBriefingListener(navigator.language || 'pt-BR');
         },
-        // model — usar CDN Picovoice para português BR
         {
           publicPath: 'https://cdn.jsdelivr.net/npm/@picovoice/porcupine-web@4/dist/',
           forceWrite: true,
@@ -191,12 +187,10 @@ export function useDumont(): UseDumontReturn {
           language: 'pt',
         }
       );
-
       porcupineRef.current = porcupine;
       // @ts-ignore
       await porcupine.start();
       setStateSynced('wake');
-
     } catch (err) {
       console.warn('[Porcupine] Falhou, usando Web Speech fallback:', err);
       startWakeWebSpeech();
@@ -250,12 +244,21 @@ export function useDumont(): UseDumontReturn {
     startBriefingListener(lang);
   }, [state, stopSpeaking, stopWake, startBriefingListener, setStateSynced]);
 
+  // FIX: stop() agora limpa result E para tudo.
+  // Campos DEP/ARR ficam desbloqueados assim que result vira null.
   const stop = useCallback(() => {
     stopWake();
     recogRef.current?.stop();
     stopSpeaking();
     setStateSynced('idle');
+    setResult(null); // ← FIX: garante que bubble some e campos são desbloqueados
   }, [stopWake, stopSpeaking, setStateSynced]);
+
+  // clearResult: fecha apenas a bubble sem parar wake word.
+  // Útil para fechar o painel mantendo o assistente em escuta.
+  const clearResult = useCallback(() => {
+    setResult(null);
+  }, []);
 
   const replay = useCallback(() => {
     if (result) speak(result.response.reply, result.response.lang);
@@ -271,5 +274,5 @@ export function useDumont(): UseDumontReturn {
     }
   }, []);
 
-  return { state, result, activate, stop, replay, isSupported, wakeEnabled, toggleWake };
+  return { state, result, activate, stop, clearResult, replay, isSupported, wakeEnabled, toggleWake };
 }
