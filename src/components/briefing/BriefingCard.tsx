@@ -143,6 +143,19 @@ export function BriefingCard({ icao, label }: BriefingCardProps) {
 
       {!loading && (
         <>
+          {/* ── CATEGORY BAR ───────────────────────── */}
+          {cat && (
+            <div className={[styles.catBar, styles[`catBar_${cat.toLowerCase()}`]].join(' ')}>
+              <span className={styles.catBarIcon}>
+                {cat === 'VMC' ? '✓' : cat === 'MVFR' ? '⚠' : cat === 'IFR' ? '⊗' : '⚡'}
+              </span>
+              <span className={styles.catBarText}>{cat}</span>
+              {decoded?.obsTime && (
+                <span className={styles.catBarTime}>{decoded.obsTime}</span>
+              )}
+            </div>
+          )}
+
           {/* ── METAR ──────────────────────────────── */}
           {decoded && (
             <div className={styles.metarRow}>
