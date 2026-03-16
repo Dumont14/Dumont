@@ -1,10 +1,12 @@
+// src/components/dumont/DumontButton.tsx
 'use client';
-import { useEffect } from 'react'; // ✅ NOVO: Importar useEffect
+
+import { useEffect } from 'react';
 import { useDumont } from '@/hooks/useDumont';
 import styles from './DumontButton.module.css';
 
 interface DumontButtonProps {
-  onIcaoDetected?: (dep: string, arr?: string) => void;
+  onIcaoDetected?:      (dep: string, arr?: string) => void;
   onBubbleStateChange?: (isOpen: boolean) => void;
 }
 
@@ -17,16 +19,27 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 export function DumontButton({ onIcaoDetected, onBubbleStateChange }: DumontButtonProps) {
-  const { state, result, activate, stop, replay, isSupported, wakeEnabled, toggleWake } = useDumont();
+  const {
+    state, result,
+    activate, stop, clearResult, replay,
+    isSupported, wakeEnabled, toggleWake,
+  } = useDumont();
 
-  // ✅ NOVO: Notificar parent quando bubble abre/fecha
+  // Notifica parent quando bubble abre/fecha.
+  // FIX: agora reflete corretamente porque result vira null ao fechar.
   useEffect(() => {
     onBubbleStateChange?.(!!result);
   }, [result, onBubbleStateChange]);
 
-  if (result?.response.icao && onIcaoDetected) {
-    onIcaoDetected(result.response.icao, result.response.icao_arr ?? undefined);
-  }
+  // Dispara onIcaoDetected apenas uma vez quando result chega com ICAO.
+  useEffect(() => {
+    if (result?.response.icao && onIcaoDetected) {
+      onIcaoDetected(
+        result.response.icao,
+        result.response.icao_arr ?? undefined,
+      );
+    }
+  }, [result]); // eslint-disable-line
 
   if (!isSupported) return null;
 
@@ -42,27 +55,39 @@ export function DumontButton({ onIcaoDetected, onBubbleStateChange }: DumontButt
     }
   };
 
-  // ✅ NOVO: Handler para fechar bubble (X button)
+  // FIX: X fecha apenas a bubble; se wake estiver ativo, mantém escuta.
+  // Usa clearResult (não stop) para não derrubar o wake word listener.
   const handleCloseBubble = () => {
-    stop();
+    clearResult();
+    // Se estava falando, para a síntese de voz também
+    if (typeof window !== 'undefined') {
+      window.speechSynthesis?.cancel();
+    }
   };
-
-  if (!isSupported) return null;
 
   return (
     <>
       <div className={styles.wrap}>
-        {/* Botão principal unificado */}
         <button
           className={[styles.btn, styles[state]].join(' ')}
           onClick={handleBtnClick}
-          title={!wakeEnabled ? 'Ativar escuta (Dumont)' : (state === 'listening' ? 'Parar' : 'Dumont — Ativar')}
+          title={
+            !wakeEnabled
+              ? 'Ativar escuta (Dumont)'
+              : state === 'listening'
+                ? 'Parar'
+                : 'Dumont — Ativar'
+          }
           aria-label={`Dumont — ${STATE_LABEL[state]}`}
         >
           {state === 'listening' ? (
             <span className={styles.wave} aria-hidden>
               {[0,1,2,3,4].map(i => (
-                <span key={i} className={styles.bar} style={{ animationDelay: `${i * 0.1}s` }} />
+                <span
+                  key={i}
+                  className={styles.bar}
+                  style={{ animationDelay: `${i * 0.1}s` }}
+                />
               ))}
             </span>
           ) : (
@@ -72,20 +97,19 @@ export function DumontButton({ onIcaoDetected, onBubbleStateChange }: DumontButt
             </div>
           )}
         </button>
-
         <span className={[styles.label, styles[state]].join(' ')}>
           {STATE_LABEL[state]}
         </span>
       </div>
 
-      {/* Response bubble */}
+      {/* Bubble — só aparece quando há result */}
       {result && (
         <div className={styles.bubble} role="dialog" aria-label="Dumont briefing response">
           <div className={styles.bubbleHead}>
             <span className={styles.bubbleName}>DUMONT</span>
-            {/* ✅ NOVO: Melhorado handler do X button */}
-            <button 
-              className={styles.closeBtn} 
+            {/* FIX: usa clearResult para fechar sem travar campos */}
+            <button
+              className={styles.closeBtn}
               onClick={handleCloseBubble}
               aria-label="Fechar"
               type="button"
@@ -93,21 +117,29 @@ export function DumontButton({ onIcaoDetected, onBubbleStateChange }: DumontButt
               ✕
             </button>
           </div>
+
           <div className={styles.heard}>
             YOU: <span>{result.heard}</span>
           </div>
+
           <div className={styles.reply}>
             {result.response.reply}
           </div>
+
           <div className={styles.footer}>
-            <button className={styles.replayBtn} onClick={replay}>▶ REPLAY</button>
+            <button className={styles.replayBtn} onClick={replay}>
+              ▶ REPLAY
+            </button>
             {result.response.icao && (
               <button
                 className={styles.briefBtn}
                 onClick={() => {
-                  onIcaoDetected?.(result.response.icao!, result.response.icao_arr ?? undefined);
-                  // ✅ NOVO: Fechar bubble após processar ICAO
-                  stop();
+                  onIcaoDetected?.(
+                    result.response.icao!,
+                    result.response.icao_arr ?? undefined,
+                  );
+                  // FIX: fecha bubble após brief — libera campos DEP/ARR
+                  clearResult();
                 }}
               >
                 ⊞ BRIEF {result.response.icao}
