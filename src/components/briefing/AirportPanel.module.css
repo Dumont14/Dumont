@@ -18,7 +18,7 @@
 }
 .location {
   display: block;
-  font-family: var(--mono); font-size: 0.72rem;
+  font-family: var(--mono); font-size: 0.80rem;
   color: var(--txtd); margin-bottom: 4px;
 }
 .metaRow {

@@ -34,7 +34,10 @@ export function DumontButton({ onIcaoDetected }: DumontButtonProps) {
           title={wakeEnabled ? 'Desativar ativação por voz' : 'Ativar ativação por voz — diga "Dumont"'}
           aria-label={wakeEnabled ? 'Wake word ativa' : 'Wake word inativa'}
         >
-          {wakeEnabled ? '👂' : '🔇'}
+          <div className={styles.prohibitedWrap}>
+            <span className={styles.icon} style={{ fontSize: '0.9rem' }}>🎙</span>
+            {!wakeEnabled && <div className={styles.slash} />}
+          </div>
         </button>
 
         {/* Botão principal */}

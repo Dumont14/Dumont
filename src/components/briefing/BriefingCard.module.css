@@ -85,7 +85,7 @@
 
 .cityUf {
   font-family: var(--mono);
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   color: var(--txtd);
 }
 
@@ -93,7 +93,7 @@
   display: flex;
   gap: 8px;
   font-family: var(--mono);
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   color: var(--amb);
   opacity: .85;
 }

@@ -76,27 +76,62 @@
 
 /* ── Wake toggle — pequeno botão acima do principal ─── */
 .wakeToggle {
-  width: 28px; height: 28px;
+  width: 32px; height: 32px;
   border-radius: 50%;
-  background: rgba(6,10,14,.85);
+  background: rgba(6,10,14,.92);
   border: 1px solid var(--brd);
   color: var(--txtd);
-  font-size: 0.95rem;
+  font-size: 1rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all .2s;
-  order: -1; /* aparece acima do botão principal */
+  order: -1;
+  position: relative;
+  overflow: hidden;
 }
+
 .wakeToggle:hover {
-  border-color: var(--amb);
-  background: rgba(255,171,0,.08);
+  border-color: var(--acc);
+  background: rgba(0,170,255,.08);
 }
+
 .wakeToggle.wakeOn {
   border-color: var(--amb);
   background: rgba(255,171,0,.12);
-  box-shadow: 0 0 8px rgba(255,171,0,.3);
+  box-shadow: 0 0 10px rgba(255,171,0,.3);
+  color: var(--amb);
+}
+
+/* Slashed circle (prohibited sign) overlay */
+.prohibitedWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%; height: 100%;
+}
+
+.slash {
+  position: absolute;
+  width: 22px; height: 22px;
+  border: 2px solid var(--red);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.slash::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 100%; height: 2px;
+  background: var(--red);
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.wakeToggle.wakeOn .prohibitedWrap .slash {
+  display: none;
 }
 
 /* ── Wave animation ──────────────────────────────────── */

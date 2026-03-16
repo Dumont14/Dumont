@@ -61,7 +61,7 @@
 
 .clock {
   font-family: var(--mono);
-  font-size: .62rem;
+  font-size: .75rem;
   color: var(--txtd);
   letter-spacing: 1px;
   line-height: 1;
