@@ -24,27 +24,28 @@ export function DumontButton({ onIcaoDetected }: DumontButtonProps) {
 
   if (!isSupported) return null;
 
+  const handleBtnClick = () => {
+    if (!wakeEnabled) {
+      toggleWake();
+      return;
+    }
+    if (state === 'idle' || state === 'wake') {
+      activate();
+    } else {
+      stop();
+    }
+  };
+
+  if (!isSupported) return null;
+
   return (
     <>
       <div className={styles.wrap}>
-        {/* Toggle wake word */}
-        <button
-          className={[styles.wakeToggle, wakeEnabled ? styles.wakeOn : ''].join(' ')}
-          onClick={toggleWake}
-          title={wakeEnabled ? 'Desativar ativação por voz' : 'Ativar ativação por voz — diga "Dumont"'}
-          aria-label={wakeEnabled ? 'Wake word ativa' : 'Wake word inativa'}
-        >
-          <div className={styles.prohibitedWrap}>
-            <span className={styles.icon} style={{ fontSize: '0.9rem' }}>🎙</span>
-            {!wakeEnabled && <div className={styles.slash} />}
-          </div>
-        </button>
-
-        {/* Botão principal */}
+        {/* Botão principal unificado */}
         <button
           className={[styles.btn, styles[state]].join(' ')}
-          onClick={state === 'idle' || state === 'wake' ? activate : stop}
-          title="Dumont — Voice Briefing"
+          onClick={handleBtnClick}
+          title={!wakeEnabled ? 'Ativar escuta (Dumont)' : (state === 'listening' ? 'Parar' : 'Dumont — Ativar')}
           aria-label={`Dumont — ${STATE_LABEL[state]}`}
         >
           {state === 'listening' ? (
@@ -53,10 +54,11 @@ export function DumontButton({ onIcaoDetected }: DumontButtonProps) {
                 <span key={i} className={styles.bar} style={{ animationDelay: `${i * 0.1}s` }} />
               ))}
             </span>
-          ) : state === 'wake' ? (
-            <span className={styles.wakeIcon} aria-hidden>👂</span>
           ) : (
-            <span className={styles.icon}>🎙</span>
+            <div className={styles.prohibitedWrap}>
+              <span className={styles.icon}>{state === 'wake' ? '👂' : '🎙'}</span>
+              {!wakeEnabled && <div className={styles.slash} />}
+            </div>
           )}
         </button>
 
