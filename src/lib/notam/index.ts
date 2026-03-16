@@ -1,4 +1,5 @@
 // src/lib/notam/index.ts
+
 import type { ParsedNotamEx, NotamSeverity, AtsHours, ScheduleStatus } from '@/types';
 
 const isBrazilian = (icao: string) => /^SB[A-Z]{2}$/i.test(icao);
@@ -223,15 +224,42 @@ function getCategory(text: string): { l: string; c: string } {
 
 // ── HORÁRIO ATS ──────────────────────────────────────────
 
+/**
+ * ✅ CORRIGIDO: Extrai HHMM-HHMM com validação rigorosa
+ * - Garante que a hora está entre 0000-2359
+ * - Ignora números em parênteses (TEL/PHONE)
+ * - Ignora sequências numéricas longas (>4 dígitos consecutivos)
+ */
 function parseAtsHours(text: string): AtsHours | null {
   if (/\bH24\b/i.test(text)) {
     return { raw: 'H24', open: 0, close: 1440, isH24: true, isOpen: true, closingSoon: false };
   }
-  const m = text.match(/(\d{4})\s*[-–]\s*(\d{4})/);
+
+  // ✅ NOVO: Remove números de telefone entre parênteses ANTES de parsear
+  const cleanText = text.replace(/\(\s*\d+\s*\)/g, '').replace(/TEL\s+\S+/gi, '').replace(/EMAIL\s+\S+/gi, '');
+
+  // ✅ NOVO: Busca apenas HHMM-HHMM com validação
+  // Garante: 
+  //   - Precedido por espaço, novo-linha ou início da string
+  //   - Não precedido por mais dígitos (evita capturar meio de números longos)
+  //   - Seguido por espaço, novo-linha, ou fim da string
+  const m = cleanText.match(/(?:^|\s)(\d{2})(\d{2})\s*[-–]\s*(\d{2})(\d{2})(?:\s|$)/);
+  
   if (!m) return null;
 
-  const open   = parseInt(m[1].slice(0,2)) * 60 + parseInt(m[1].slice(2,4));
-  const close  = parseInt(m[2].slice(0,2)) * 60 + parseInt(m[2].slice(2,4));
+  const openHour = parseInt(m[1]);
+  const openMin  = parseInt(m[2]);
+  const closeHour = parseInt(m[3]);
+  const closeMin  = parseInt(m[4]);
+
+  // ✅ NOVO: Validação de horas (0-23) e minutos (0-59)
+  if (openHour > 23 || openMin > 59 || closeHour > 23 || closeMin > 59) {
+    return null;
+  }
+
+  const open   = openHour * 60 + openMin;
+  const close  = closeHour * 60 + closeMin;
+
   const now    = new Date();
   const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
 
@@ -241,18 +269,20 @@ function parseAtsHours(text: string): AtsHours | null {
     ? (nowMin < open ? open - nowMin : 1440 - nowMin + open)
     : undefined;
 
-  return { raw: m[0], open, close, isH24: false, isOpen, closingSoon, opensIn };
+  const rawTime = `${String(openHour).padStart(2,'0')}${String(openMin).padStart(2,'0')}-${String(closeHour).padStart(2,'0')}${String(closeMin).padStart(2,'0')}`;
+
+  return { raw: rawTime, open, close, isH24: false, isOpen, closingSoon, opensIn };
 }
 
 export function extractAtsHours(notams: ParsedNotamEx[]): AtsHours | null {
+  // ✅ CORRIGIDO: Procura APENAS em NOTAMs de ATS, ignorando outros
   const atsNotam = notams.find(n =>
     /AD\s+HR\s+SER|SER\s+ATS|HR\s+SER/i.test(n.text)
   );
   if (atsNotam) return parseAtsHours(atsNotam.text);
-  const critNotam = notams.find(n =>
-    n.sev === 'crit' && /(\d{4})\s*[-–]\s*(\d{4})/.test(n.text)
-  );
-  if (critNotam) return parseAtsHours(critNotam.text);
+
+  // ✅ NOVO: Não tenta extrair de NOTAMs críticos genéricos
+  // (evita capturar telefone de pista fechada, etc)
   return null;
 }
 
