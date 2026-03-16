@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { playChime } from '@/lib/voice/chime';
 import type { VoiceResponse } from '@/types';
 
 export type DumontState = 'idle' | 'wake' | 'listening' | 'thinking' | 'speaking';
@@ -16,7 +17,7 @@ interface UseDumontReturn {
   result:       DumontResult | null;
   activate:     () => void;
   stop:         () => void;
-  clearResult:  () => void;   // ← NOVO: limpa result sem parar o assistente
+  clearResult:  () => void;
   replay:       () => void;
   isSupported:  boolean;
   wakeEnabled:  boolean;
@@ -63,9 +64,9 @@ export function useDumont(): UseDumontReturn {
       setStateSynced('idle'); return;
     }
     setStateSynced('speaking');
-    const utt    = new SpeechSynthesisUtterance(text);
-    utt.lang     = lang === 'en' ? 'en-US' : 'pt-BR';
-    utt.rate     = 0.95; utt.pitch = 1.0; utt.volume = 1.0;
+    const utt       = new SpeechSynthesisUtterance(text);
+    utt.lang        = lang === 'en' ? 'en-US' : 'pt-BR';
+    utt.rate        = 0.95; utt.pitch = 1.0; utt.volume = 1.0;
     const voices    = window.speechSynthesis.getVoices();
     const preferred = voices.find(v => v.lang === utt.lang && v.localService)
                    || voices.find(v => v.lang.startsWith(utt.lang.substring(0, 2)));
@@ -100,8 +101,12 @@ export function useDumont(): UseDumontReturn {
     }
   }, [speak, setStateSynced]);
 
+  /**
+   * startBriefingListener — called after chime finishes.
+   * The chime acts as audio feedback: "I heard you, now speak."
+   */
   const startBriefingListener = useCallback((lang: string) => {
-    const w = window as any;
+    const w  = window as any;
     const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) return;
     recogRef.current?.stop();
@@ -125,17 +130,28 @@ export function useDumont(): UseDumontReturn {
     recog.start();
   }, [processTranscript, setStateSynced]);
 
+  /**
+   * activateWithChime — plays the cabin chime, then opens the mic.
+   * Awaiting the chime ensures the mic opens only after the sound ends,
+   * preventing the chime itself from being transcribed.
+   */
+  const activateWithChime = useCallback(async (lang: string) => {
+    setStateSynced('wake'); // show "AGUARDANDO…" while chime plays
+    await playChime();
+    startBriefingListener(lang);
+  }, [startBriefingListener, setStateSynced]);
+
   const startWakeWebSpeech = useCallback(() => {
     if (!isSupported || wakeActiveRef.current) return;
     const w  = window as any;
     const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) return;
     wakeRecogRef.current?.stop();
-    const recog          = new SR();
-    recog.continuous     = true;
-    recog.interimResults = true;
-    recog.lang           = navigator.language || 'pt-BR';
-    wakeRecogRef.current = recog;
+    const recog           = new SR();
+    recog.continuous      = true;
+    recog.interimResults  = true;
+    recog.lang            = navigator.language || 'pt-BR';
+    wakeRecogRef.current  = recog;
     wakeActiveRef.current = true;
     recog.onresult = (e: any) => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -143,8 +159,9 @@ export function useDumont(): UseDumontReturn {
         if (text.includes('dumont')) {
           wakeActiveRef.current = false;
           recog.stop();
+          // Play chime before opening briefing mic
           const lang = navigator.language || 'pt-BR';
-          startBriefingListener(lang);
+          activateWithChime(lang);
           return;
         }
       }
@@ -160,7 +177,7 @@ export function useDumont(): UseDumontReturn {
       recog.start();
       setStateSynced('wake');
     } catch { wakeActiveRef.current = false; }
-  }, [isSupported, wakeEnabled, startBriefingListener, setStateSynced]);
+  }, [isSupported, wakeEnabled, activateWithChime, setStateSynced]);
 
   const startPorcupine = useCallback(async () => {
     if (porcupineRef.current) return;
@@ -177,7 +194,8 @@ export function useDumont(): UseDumontReturn {
           console.log('[Porcupine] Dumont detectado!');
           // @ts-ignore
           try { porcupine.pause(); } catch {}
-          startBriefingListener(navigator.language || 'pt-BR');
+          // Play chime before opening briefing mic
+          activateWithChime(navigator.language || 'pt-BR');
         },
         {
           publicPath: 'https://cdn.jsdelivr.net/npm/@picovoice/porcupine-web@4/dist/',
@@ -195,7 +213,7 @@ export function useDumont(): UseDumontReturn {
       console.warn('[Porcupine] Falhou, usando Web Speech fallback:', err);
       startWakeWebSpeech();
     }
-  }, [startBriefingListener, startWakeWebSpeech, setStateSynced]);
+  }, [activateWithChime, startWakeWebSpeech, setStateSynced]);
 
   const stopWake = useCallback(() => {
     if (porcupineRef.current) {
@@ -236,26 +254,23 @@ export function useDumont(): UseDumontReturn {
     };
   }, [stopWake, stopSpeaking]);
 
+  // Manual activation via button — also plays chime first
   const activate = useCallback(() => {
     if (state === 'speaking') { stopSpeaking(); setStateSynced('idle'); return; }
     if (state !== 'idle' && state !== 'wake') return;
     stopWake();
     const lang = navigator.language || 'pt-BR';
-    startBriefingListener(lang);
-  }, [state, stopSpeaking, stopWake, startBriefingListener, setStateSynced]);
+    activateWithChime(lang);
+  }, [state, stopSpeaking, stopWake, activateWithChime, setStateSynced]);
 
-  // FIX: stop() agora limpa result E para tudo.
-  // Campos DEP/ARR ficam desbloqueados assim que result vira null.
   const stop = useCallback(() => {
     stopWake();
     recogRef.current?.stop();
     stopSpeaking();
     setStateSynced('idle');
-    setResult(null); // ← FIX: garante que bubble some e campos são desbloqueados
+    setResult(null);
   }, [stopWake, stopSpeaking, setStateSynced]);
 
-  // clearResult: fecha apenas a bubble sem parar wake word.
-  // Útil para fechar o painel mantendo o assistente em escuta.
   const clearResult = useCallback(() => {
     setResult(null);
   }, []);
