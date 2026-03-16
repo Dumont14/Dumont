@@ -165,23 +165,38 @@ export function useDumont(): UseDumontReturn {
     if (porcupineRef.current) return;
     try {
       const { PorcupineWorker } = await import('@picovoice/porcupine-web');
+
       const ppnRes  = await fetch(PORCUPINE_MODEL_URL);
       const ppnBuf  = await ppnRes.arrayBuffer();
       const ppnData = new Uint8Array(ppnBuf);
-      const b64 = btoa(ppnData.reduce((s, b) => s + String.fromCharCode(b), ''));
+      const b64     = btoa(ppnData.reduce((s, b) => s + String.fromCharCode(b), ''));
+
       const porcupine = await PorcupineWorker.create(
         PORCUPINE_ACCESS_KEY,
-        [{ base64: b64, sensitivity: 0.7 }],
+        // keyword
+        [{ base64: b64, sensitivity: 0.7, label: 'dumont' }],
+        // detection callback
         () => {
           console.log('[Porcupine] Dumont detectado!');
+          // @ts-ignore
           try { porcupine.pause(); } catch {}
-          const lang = navigator.language || 'pt-BR';
-          startBriefingListener(lang);
+          startBriefingListener(navigator.language || 'pt-BR');
         },
+        // model — usar CDN Picovoice para português BR
+        {
+          publicPath: 'https://cdn.jsdelivr.net/npm/@picovoice/porcupine-web@4/dist/',
+          forceWrite: true,
+          // @ts-ignore
+          modelVersion: '3.0.0',
+          language: 'pt',
+        }
       );
+
       porcupineRef.current = porcupine;
+      // @ts-ignore
       await porcupine.start();
       setStateSynced('wake');
+
     } catch (err) {
       console.warn('[Porcupine] Falhou, usando Web Speech fallback:', err);
       startWakeWebSpeech();
