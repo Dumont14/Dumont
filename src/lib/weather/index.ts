@@ -1,5 +1,5 @@
 // src/lib/weather/index.ts
-const isBrazilian = (icao: string) => /^SB[A-Z]{2}$/i.test(icao);
+const isBrazilian = (icao: string) => /^S[A-Z]{2}$/i.test(icao);
 
 function extractNumericTime(raw: string): number {
   const m = raw.match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
