@@ -115,11 +115,12 @@ interface LeafletMapProps {
   dep: AirportCoord;
   arr: AirportCoord;
   alternates: AlternateAD[];
+  distKm: number;
   onSelect: (icao: string) => void;
   selected: string | null;
 }
 
-function LeafletMap({ dep, arr, alternates, onSelect, selected }: LeafletMapProps) {
+function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }: LeafletMapProps) {
   const mapRef = useRef<any>(null);
   const leafRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -161,6 +162,28 @@ function LeafletMap({ dep, arr, alternates, onSelect, selected }: LeafletMapProp
         [[dep.lat, dep.lng], [arr.lat, arr.lng]],
         { color: '#00aaff', weight: 2, dashArray: '8 6', opacity: 0.8 }
       ).addTo(map);
+
+      // Label de distância no centro da rota
+      const midLat = (dep.lat + arr.lat) / 2;
+      const midLng = (dep.lng + arr.lng) / 2;
+      L.marker([midLat, midLng], {
+        icon: L.divIcon({
+          html: `<div style="
+            background:rgba(6,10,14,.85);
+            border:1px solid #00aaff55;
+            color:#00d4ff;
+            font-family:'Share Tech Mono',monospace;
+            font-size:11px;
+            padding:2px 8px;
+            white-space:nowrap;
+            letter-spacing:1px;
+          ">${distKm} km</div>`,
+          className: '',
+          iconAnchor: [30, 10],
+        }),
+        interactive: false,
+        zIndexOffset: -1,
+      }).addTo(map);
 
       // Ícone customizado para ADs
       const makeIcon = (color: string, size: number) => L.divIcon({
@@ -214,7 +237,7 @@ function LeafletMap({ dep, arr, alternates, onSelect, selected }: LeafletMapProp
     return () => {
       if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; }
     };
-  }, [dep.icao, arr.icao]); // eslint-disable-line
+  }, [dep.icao, arr.icao, distKm]); // eslint-disable-line
 
   // Atualizar visual do selecionado
   useEffect(() => {
@@ -322,39 +345,20 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
   return (
     <Panel
       title="ROTA"
-      subtitle={route ? `${dep} → ${arr}  |  ${Math.round(route.distance*1.852)}km` : `${dep} → ${arr}`}
+      subtitle={route ? `${dep} → ${arr}  |  ${fmt3(route.heading)} - ${route.distance} NM` : `${dep} → ${arr}`}
       status={loading?'loading':error?'warn':'ok'}>
       {loading && <div className={styles.msg}><span className="spin"/> Calculando rota…</div>}
       {error   && <div className={styles.warn}>⚠ {error}</div>}
 
       {route && (
         <>
-          {/* ── Métricas em linha única ── */}
-          <div className={styles.metricsRow}>
-            <div className={styles.metric}>
-              <span className={styles.metricLabel}>RUMO MAG</span>
-              <span className={styles.metricVal}>{fmt3(route.heading)}</span>
-            </div>
-            <div className={styles.metricSep}>·</div>
-            <div className={styles.metric}>
-              <span className={styles.metricLabel}>DISTÂNCIA</span>
-              <span className={styles.metricVal}>
-                {route.distance}<span className={styles.unit}>NM</span>
-              </span>
-            </div>
-            <div className={styles.metricSep}>·</div>
-            <div className={styles.metric}>
-              <span className={styles.metricLabel}>KM</span>
-              <span className={styles.metricVal}>
-                {Math.round(route.distance*1.852)}<span className={styles.unit}>km</span>
-              </span>
-            </div>
-          </div>
+
 
           {/* ── Mapa Leaflet ── */}
           <LeafletMap
             dep={route.dep} arr={route.arr}
             alternates={route.alternates}
+            distKm={Math.round(route.distance*1.852)}
             onSelect={icao => setSelected(s => s===icao ? null : icao)}
             selected={selected}
           />
