@@ -1,4 +1,3 @@
-// src/app/page.tsx
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
@@ -29,6 +28,7 @@ export default function HomePage() {
   const [activeArr, setActiveArr] = useState('');
   const [feedOpen, setFeedOpen]   = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('brief');
+  const [voiceTranscription, setVoiceTranscription] = useState(''); // NOVO: controla modal de voz
 
   const runBriefing = useCallback(() => {
     const d = dep.trim().toUpperCase();
@@ -36,15 +36,36 @@ export default function HomePage() {
     setActiveDep(d);
     setActiveArr(arr.trim().toUpperCase());
     setMobileTab('brief');
+    // NOVO: limpar transcrição anterior
+    setVoiceTranscription('');
   }, [dep, arr]);
 
   const handleDumontIcao = useCallback((d: string, a?: string) => {
-    setDep(d); setArr(a || '');
-    setActiveDep(d); setActiveArr(a || '');
+    setDep(d);
+    setArr(a || '');
+    setActiveDep(d);
+    setActiveArr(a || '');
     setMobileTab('brief');
+    // NOVO: limpar transcrição após processar
+    setVoiceTranscription('');
   }, []);
 
-  const handleKey = (e: React.KeyboardEvent) => { if (e.key === 'Enter') runBriefing(); };
+  const handleKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      // NOVO: limpar transcrição antes de buscar
+      setVoiceTranscription('');
+      runBriefing();
+    }
+  };
+
+  // NOVO: handler para limpar campos e estado de voz
+  const handleClearAll = useCallback(() => {
+    setDep('');
+    setArr('');
+    setActiveDep('');
+    setActiveArr('');
+    setVoiceTranscription('');
+  }, []);
 
   const hasRoute = !!(activeDep && activeArr);
 
@@ -84,9 +105,11 @@ export default function HomePage() {
                   value={dep}
                   onChange={e => setDep(e.target.value.toUpperCase())}
                   onKeyDown={handleKey}
+                  onFocus={() => setVoiceTranscription('')} // NOVO: limpar ao focar
                   placeholder="SBSP"
                   maxLength={4}
                   autoComplete="off"
+                  disabled={voiceTranscription !== ''} // NOVO: bloquear enquanto há transcrição
                 />
               </div>
               <span className={styles.arrow}>→</span>
@@ -98,13 +121,21 @@ export default function HomePage() {
                   value={arr}
                   onChange={e => setArr(e.target.value.toUpperCase())}
                   onKeyDown={handleKey}
+                  onFocus={() => setVoiceTranscription('')} // NOVO: limpar ao focar
                   placeholder="SBBE"
                   maxLength={4}
                   autoComplete="off"
+                  disabled={voiceTranscription !== ''} // NOVO: bloquear enquanto há transcrição
                 />
               </div>
             </div>
-            <button className={styles.briefBtn} onClick={runBriefing}>BRIEF</button>
+            <button 
+              className={styles.briefBtn} 
+              onClick={runBriefing}
+              disabled={voiceTranscription !== ''} // NOVO: bloquear botão
+            >
+              BRIEF
+            </button>
           </div>
 
           <div className={styles.headerRight}>
@@ -203,7 +234,13 @@ export default function HomePage() {
         </button>
       </nav>
 
-      <DumontButton onIcaoDetected={handleDumontIcao} />
+      {/* NOVO: passar estado de transcrição para DumontButton */}
+      <DumontButton 
+        onIcaoDetected={handleDumontIcao}
+        voiceTranscription={voiceTranscription}
+        onVoiceTranscriptionChange={setVoiceTranscription}
+        onClearAll={handleClearAll}
+      />
 
       {feedOpen && (
         <div className={styles.overlay} onClick={() => setFeedOpen(false)} aria-hidden />
