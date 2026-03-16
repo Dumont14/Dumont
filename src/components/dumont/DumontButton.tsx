@@ -1,4 +1,5 @@
 'use client';
+import { useEffect } from 'react'; // ✅ NOVO: Importar useEffect
 import { useDumont } from '@/hooks/useDumont';
 import styles from './DumontButton.module.css';
 
@@ -19,7 +20,7 @@ export function DumontButton({ onIcaoDetected, onBubbleStateChange }: DumontButt
   const { state, result, activate, stop, replay, isSupported, wakeEnabled, toggleWake } = useDumont();
 
   // ✅ NOVO: Notificar parent quando bubble abre/fecha
-  React.useEffect(() => {
+  useEffect(() => {
     onBubbleStateChange?.(!!result);
   }, [result, onBubbleStateChange]);
 
