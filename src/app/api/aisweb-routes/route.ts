@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   try {
     const res = await fetch(`${AISWEB_BASE}?${query.toString()}`, {
       headers: { Accept: 'application/json, text/xml, */*' },
-      next: { revalidate: 1800 }, // cache 30min — rotas mudam pouco
+      cache: 'no-store', // sem cache — params variam por par
       signal: AbortSignal.timeout(10_000),
     });
 
