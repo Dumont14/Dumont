@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Panel } from '@/components/ui/Panel';
 import styles from './RoutePanel.module.css';
+import ercStyles from './RoutePanel.routes.module.css';
 import { fetchRoutesp } from '@/lib/aisweb/routes';
 import type { RoutespItem, ErcLevel } from '@/types/aisweb';
 
