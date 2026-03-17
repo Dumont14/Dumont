@@ -1,6 +1,6 @@
 // src/components/briefing/RoutePanel.tsx
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { Panel } from '@/components/ui/Panel';
 import styles from './RoutePanel.module.css';
 import ercStyles from './RoutePanel.routes.module.css';
@@ -122,48 +122,92 @@ function ercColor(level?: string): string {
 }
 
 // ── Hook: useErcRoutes ────────────────────────────────────
-// Gerencia fetch, debounce, AbortController e cache de rotas ERC.
+// Busca TODAS as rotas ERC (sem filtro adep/ades — a API é por FIR)
+// e filtra localmente pelas que têm adep/ades próximos à rota DEP→ARR.
 
-function useErcRoutes(dep: string, arr: string, level: ErcLevel, enabled: boolean) {
+/** Distância em NM entre dois pontos */
+function haversineNM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3440.065, d = Math.PI/180;
+  const dLat = (lat2-lat1)*d, dLng = (lng2-lng1)*d;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*d)*Math.cos(lat2*d)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+/** Verifica se um ponto está dentro de um corredor em torno da rota DEP→ARR */
+function nearRoute(
+  ptLat: number, ptLng: number,
+  depLat: number, depLng: number,
+  arrLat: number, arrLng: number,
+  thresholdNM: number
+): boolean {
+  // Cross-track distance simplificada (planar — ok para distâncias < 2000NM)
+  const dx = arrLng - depLng, dy = arrLat - depLat;
+  const lenSq = dx*dx + dy*dy;
+  if (lenSq < 1e-10) return haversineNM(ptLat, ptLng, depLat, depLng) <= thresholdNM;
+  const t = Math.max(0, Math.min(1, ((ptLng-depLng)*dx + (ptLat-depLat)*dy) / lenSq));
+  const projLat = depLat + t*dy, projLng = depLng + t*dx;
+  return haversineNM(ptLat, ptLng, projLat, projLng) <= thresholdNM;
+}
+
+function useErcRoutes(
+  dep: string, arr: string,
+  depCoords: { lat: number; lng: number } | null,
+  arrCoords: { lat: number; lng: number } | null,
+  level: ErcLevel,
+  enabled: boolean
+) {
   const [routes, setRoutes]   = useState<RoutespItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const abortRef              = useRef<AbortController | null>(null);
   const timerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Rota total em NM para definir threshold dinâmico
+  const routeNM = depCoords && arrCoords
+    ? haversineNM(depCoords.lat, depCoords.lng, arrCoords.lat, arrCoords.lng)
+    : 0;
+
   useEffect(() => {
-    // Limpar ao desativar
     if (!enabled) {
       setRoutes([]);
       setError(null);
       setLoading(false);
       return;
     }
+    if (!dep || !arr || !depCoords || !arrCoords) return;
 
-    if (!dep || !arr) return;
-
-    // Debounce 300ms
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
-      // Cancelar request anterior
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
-
       setLoading(true);
       setError(null);
 
       try {
-        const results = await fetchRoutesp({
-          adep: dep,
-          ades: arr,
-          level,
+        // Buscar TODAS as rotas — API organizada por FIR, não por par
+        const all = await fetchRoutesp({
+          level: level !== 'ALL' ? level : undefined,
           signal: ctrl.signal,
-          limit: 200,
+          limit: 700,
         });
-        if (!ctrl.signal.aborted) {
-          setRoutes(results);
-        }
+        if (ctrl.signal.aborted) return;
+
+        // Threshold: 15% da distância total, mínimo 300NM, máximo 600NM
+        const threshold = Math.min(600, Math.max(300, routeNM * 0.15));
+
+        // Filtrar: rotas cujos adep E ades estão dentro do corredor
+        const filtered = all.filter(r => {
+          if (!r.coords || r.coords.length < 2) return false;
+          const [dLat, dLng] = r.coords[0];
+          const [aLat, aLng] = r.coords[r.coords.length - 1];
+          return (
+            nearRoute(dLat, dLng, depCoords.lat, depCoords.lng, arrCoords.lat, arrCoords.lng, threshold) &&
+            nearRoute(aLat, aLng, depCoords.lat, depCoords.lng, arrCoords.lat, arrCoords.lng, threshold)
+          );
+        });
+
+        setRoutes(filtered);
       } catch (e: unknown) {
         if ((e as Error).name === 'AbortError') return;
         setError((e as Error).message ?? 'Erro ao buscar rotas ERC');
@@ -176,7 +220,7 @@ function useErcRoutes(dep: string, arr: string, level: ErcLevel, enabled: boolea
       if (timerRef.current) clearTimeout(timerRef.current);
       abortRef.current?.abort();
     };
-  }, [dep, arr, level, enabled]);
+  }, [dep, arr, level, enabled, depCoords?.lat, depCoords?.lng, arrCoords?.lat, arrCoords?.lng]); // eslint-disable-line
 
   return { routes, loading, error };
 }
@@ -281,14 +325,20 @@ interface LeafletMapProps {
   distKm: number;
   onSelect: (icao: string) => void;
   selected: string | null;
-  /** Expõe a instância do mapa Leaflet para uso externo (ERC layers) */
-  onMapReady: (map: any) => void;
 }
 
-function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected, onMapReady }: LeafletMapProps) {
+/** Ref handle exposto pelo LeafletMap para acesso externo à instância Leaflet */
+interface LeafletMapHandle { getMap: () => any; }
+
+const LeafletMap = forwardRef<LeafletMapHandle, LeafletMapProps>(
+function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }, ref) {
   const mapRef = useRef<any>(null);
   const leafRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+
+  useImperativeHandle(ref, () => ({
+    getMap: () => leafRef.current,
+  }), []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -384,8 +434,6 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected, onMapRea
       leafRef.current = map;
       // Expor L globalmente para useErcLayers (evita import() duplicado)
       if (typeof window !== 'undefined') (window as any).L = L;
-      // Notificar RoutePanel que o mapa está pronto
-      onMapReady(map);
     };
 
     loadLeaflet().catch(console.warn);
@@ -394,8 +442,6 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected, onMapRea
       if (leafRef.current) {
         leafRef.current.remove();
         leafRef.current = null;
-        // Avisar o pai que o mapa foi destruído — useErcLayers vai ver leafRef.current === null
-        onMapReady(null);
       }
     };
   }, [dep.icao, arr.icao, distKm]); // eslint-disable-line
@@ -433,7 +479,7 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected, onMapRea
       <div ref={mapRef} className={styles.leafletMap} />
     </>
   );
-}
+}); // end forwardRef LeafletMap
 
 // ── Subcomponente: ERC Control Bar ────────────────────────
 
@@ -642,24 +688,29 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
   const [ercLevel,      setErcLevel]      = useState<ErcLevel>('ALL');
   const [selectedRoute, setSelectedRoute] = useState<RoutespItem | null>(null);
 
-  // Ref do mapa Leaflet — preenchida via onMapReady callback
-  const leafRef = useRef<any>(null);
-  const onMapReady = useCallback((map: any) => {
-    leafRef.current = map;
-  }, []);
+  // Ref para a instância Leaflet — obtida via handle do LeafletMap
+  const leafMapRef = useRef<LeafletMapHandle>(null);
+  const getLeaf = useCallback(() => leafMapRef.current?.getMap() ?? null, []);
 
-  // Hook de dados ERC
+  // Hook de dados ERC — passa coords para filtro local
   const { routes: ercRoutes, loading: ercLoading, error: ercError } = useErcRoutes(
-    dep, arr, ercLevel, showErc
+    dep, arr,
+    route ? { lat: route.dep.lat, lng: route.dep.lng } : null,
+    route ? { lat: route.arr.lat, lng: route.arr.lng } : null,
+    ercLevel, showErc
   );
 
-  // Hook de layers ERC no mapa
-  const handleRouteClickFromLayer = useCallback((route: RoutespItem) => {
-    setSelectedRoute(route);
+  // Hook de layers ERC no mapa — usa um ref que resolve via getLeaf()
+  const handleRouteClickFromLayer = useCallback((r: RoutespItem) => {
+    setSelectedRoute(r);
   }, []);
 
+  // Wrapper ref que sempre lê a instância atual do mapa
+  const ercMapProxy = useRef<any>({});
+  Object.defineProperty(ercMapProxy.current, 'current', { get: getLeaf, configurable: true });
+
   const { focusRoute } = useErcLayers(
-    leafRef,
+    ercMapProxy.current as React.MutableRefObject<any>,
     ercRoutes,
     showErc,
     handleRouteClickFromLayer
@@ -752,12 +803,12 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
 
           {/* ── Mapa Leaflet ── */}
           <LeafletMap
+            ref={leafMapRef}
             dep={route.dep} arr={route.arr}
             alternates={route.alternates}
             distKm={Math.round(route.distance*1.852)}
             onSelect={icao => setSelected(s => s===icao ? null : icao)}
             selected={selected}
-            onMapReady={onMapReady}
           />
 
           {/* ── Lista de rotas ERC ── */}
