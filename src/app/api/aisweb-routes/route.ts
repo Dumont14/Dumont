@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const AISWEB_BASE = 'https://aisweb.decea.mil.br/api/';
+const AISWEB_BASE = 'http://aisweb.decea.gov.br/api/';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   const query = new URLSearchParams({
     apiKey:  user,
     apiPass: pass,
-    area:    'rotasp',   // nome real do campo na API AISWEB
+    area:    'routesp',
   });
   if (adep)  query.set('adep',  adep);
   if (ades)  query.set('ades',  ades);
