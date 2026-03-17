@@ -118,13 +118,13 @@ export async function fetchRoutesp(params: FetchRoutespParams): Promise<RoutespI
     return routeCache.get(cacheKey)!;
   }
 
-  // Montar query string
-  const query = new URLSearchParams({ area: 'routesp' });
+  // Montar query string para /api/aisweb-routes
+  const query = new URLSearchParams();
   if (adep) query.set('adep', adep);
   if (ades) query.set('ades', ades);
   if (level && level !== 'ALL') query.set('level', level);
 
-  const res = await fetch(`/api/aisweb?${query.toString()}`, {
+  const res = await fetch(`/api/aisweb-routes?${query.toString()}`, {
     signal,
     headers: { Accept: 'application/json, text/xml, */*' },
   });
