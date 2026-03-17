@@ -329,12 +329,12 @@ function parseROTAER(xml: string): RotaerData | null {
     if (!ident) continue;
     runways.push({
       ident,
-      length_m: parseInt(length) || 0,
-      width_m:  parseInt(width)  || 0,
+      length_m: parseInt(length, 10) || 0,
+      width_m:  parseInt(width, 10)  || 0,
       surface:  surface || '',
       closed:   closed === 'true' || closed === '1',
-      tora_le:  toraLe ? parseInt(toraLe) : null,
-      tora_he:  toraHe ? parseInt(toraHe) : null,
+      tora_le:  toraLe ? parseInt(toraLe, 10) : null,
+      tora_he:  toraHe ? parseInt(toraHe, 10) : null,
     });
   }
 
