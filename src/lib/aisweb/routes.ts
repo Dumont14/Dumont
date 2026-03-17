@@ -25,23 +25,31 @@ async function resolveAirportCoord(
   icao: string,
   signal?: AbortSignal
 ): Promise<[number, number] | null> {
-  if (airportCoordCache.has(icao)) return airportCoordCache.get(icao)!;
+  // Validar ICAO antes de chamar a API — evita 400 com valores vazios/inválidos
+  if (!icao || !/^[A-Z]{4}$/.test(icao.trim().toUpperCase())) {
+    return null;
+  }
+  const normalized = icao.trim().toUpperCase();
+  if (airportCoordCache.has(normalized)) return airportCoordCache.get(normalized)!;
+
+  // Usar normalized daqui pra frente
+  const icao_ = normalized;
 
   try {
-    const res = await fetch(`/api/airport?icao=${icao}`, {
+    const res = await fetch(`/api/airport?icao=${icao_}`, {
       signal,
       // Não cachear erros de rede — apenas resultados válidos
     });
-    if (!res.ok) { airportCoordCache.set(icao, null); return null; }
+    if (!res.ok) { airportCoordCache.set(icao_, null); return null; }
     const data = await res.json();
     const lat = parseFloat(data.lat);
     const lng = parseFloat(data.lng);
-    if (isNaN(lat) || isNaN(lng)) { airportCoordCache.set(icao, null); return null; }
+    if (isNaN(lat) || isNaN(lng)) { airportCoordCache.set(icao_, null); return null; }
     const coord: [number, number] = [lat, lng];
-    airportCoordCache.set(icao, coord);
+    airportCoordCache.set(icao_, coord);
     return coord;
   } catch {
-    airportCoordCache.set(icao, null);
+    airportCoordCache.set(icao_, null);
     return null;
   }
 }
