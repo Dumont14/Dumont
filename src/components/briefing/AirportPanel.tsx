@@ -121,8 +121,10 @@ export function AirportPanel({ icao, mode = 'pilot' }: AirportPanelProps) {
             <>
               <div className={styles.header}>
                 <span className={styles.airportName}>{info.name}</span>
-                {info.city && info.uf && (
-                  <span className={styles.location}>{info.city} / {info.uf}</span>
+                {info.city && (
+                  <span className={styles.location}>
+                    {info.city}{info.uf ? ` / ${info.uf}` : ''}
+                  </span>
                 )}
                 <div className={styles.metaRow}>
                   {info.alt_ft   && <span className={styles.meta}>ELEV {info.alt_ft}ft</span>}

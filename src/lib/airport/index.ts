@@ -41,6 +41,16 @@ export interface AirportInfo {
 
 const isBrazilian = (icao: string) => /^S[BDINPRSW][A-Z]{2}$/i.test(icao);
 
+// Strip common English/Portuguese airport suffixes (e.g. "Airport", "International Airport")
+// from names returned by OurAirports or AISWEB, which sometimes include them redundantly.
+function cleanAirportName(name: string): string {
+  return name
+    .replace(/\s+(International|Interstate|Regional|Municipal|Domestic)\s+(Airport|Aeroporto|Aeródromo)/gi, '')
+    .replace(/\s+(Airport|Aeroporto|Aeródromo)\s*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // ── AISWEB ROTAER (BR) ───────────────────────────────────
 
 async function fetchFromAISWEB(icao: string): Promise<AirportInfo | null> {
@@ -61,7 +71,7 @@ async function fetchFromAISWEB(icao: string): Promise<AirportInfo | null> {
 
   return {
     icao:        r.icao        || icao,
-    name:        r.name        || '',
+    name:        cleanAirportName(r.name || ''),
     city:        r.city        || '',
     uf:          r.uf          || '',
     lat:         r.lat         || '',
@@ -214,7 +224,7 @@ async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
     }
 
     return {
-      icao, name: airportName, city: airportCity,
+      icao, name: cleanAirportName(airportName), city: airportCity,
       uf: '', lat: airportLat, lng: airportLng,
       alt_ft: airportElev, utc: '',
       type_opr: '', type_util: '',

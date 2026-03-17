@@ -122,8 +122,10 @@ export function BriefingCard({ icao, label }: BriefingCardProps) {
           )}
         </div>
         <div className={styles.subRow}>
-          {airport?.city && airport?.uf && (
-            <span className={styles.cityUf}>{airport.city}, {airport.uf}</span>
+          {airport?.city && (
+            <span className={styles.cityUf}>
+              {airport.city}{airport.uf ? ` / ${airport.uf}` : ''}
+            </span>
           )}
           {(sun.sunrise || sun.sunset) && (
             <span className={styles.sunRow}>
