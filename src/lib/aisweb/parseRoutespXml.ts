@@ -47,6 +47,13 @@ export function parseRoutespResponse(raw: string): RoutespItem[] {
         return [];
       }
 
+      // Verificar total="0" no elemento routesp — sem dados para parsear
+      const routespEl = doc.querySelector('routesp');
+      if (routespEl?.getAttribute('total') === '0') {
+        console.debug('[routesp] total=0, nenhuma rota para este par');
+        return [];
+      }
+
       const root = doc.documentElement;
 
       // Tag real confirmada: <item> dentro de <routesp>
@@ -80,6 +87,12 @@ export function parseRoutespResponse(raw: string): RoutespItem[] {
 // ── Normalizadores internos ───────────────────────────────────────────────
 
 function normalizeXmlItem(el: Element): RoutespItem | null {
+  // Log do primeiro elemento para diagnóstico (remover após confirmar)
+  if ((normalizeXmlItem as any)._logged !== true) {
+    (normalizeXmlItem as any)._logged = true;
+    console.debug('[routesp] primeiro <item> outerHTML (200 chars):', el.outerHTML.slice(0, 200));
+    console.debug('[routesp] children tags:', Array.from(el.children).map(c => c.tagName).join(', '));
+  }
   // Tenta extrair campos em diferentes variações de tag name
   const ident =
     getText(el, 'ident') ?? getText(el, 'IDENT') ?? getText(el, 'name') ?? getText(el, 'NAME');
@@ -98,6 +111,8 @@ function normalizeXmlItem(el: Element): RoutespItem | null {
   const id =
     getText(el, 'id') ?? getText(el, 'ID') ?? ident ?? `erc-${Math.random().toString(36).slice(2, 7)}`;
 
+  // Rejeitar elementos que não sejam rotas reais (ex: elemento <routesp> capturado como fallback)
+  if (!ident && !adep && !ades) return null;
   if (!id && !ident && !route) return null;
 
   return {
