@@ -191,7 +191,6 @@ function useErcLayers(
   enabled: boolean,
   onRouteClick: (route: RoutespItem) => void,
 ) {
-  // Usamos um Map<routeId, leaflet layer> para evitar race conditions
   const layersRef = useRef<Map<string, any>>(new Map());
 
   const clearAllLayers = useCallback(() => {
@@ -202,69 +201,69 @@ function useErcLayers(
   }, []);
 
   useEffect(() => {
-    const map = leafRef.current;
-    if (!map) return;
+    // Capturar snapshot do mapa no momento do efeito.
+    // Se o mapa for destruído e recriado, snapshotMap !== leafRef.current
+    // e as polylines antigas já terão sido removidas no cleanup.
+    const snapshotMap = leafRef.current;
+    if (!snapshotMap) return;
 
-    // Remover layers anteriores
     clearAllLayers();
-
     if (!enabled || routes.length === 0) return;
 
-    // Importar L dinamicamente (já foi carregado pelo LeafletMap)
-    import('leaflet' as any).then(mod => {
-      const L = mod.default || mod;
-      if (!leafRef.current) return; // mapa pode ter sido destruído
+    // L já está disponível em window após o LeafletMap carregar
+    const L = (typeof window !== 'undefined' && (window as any).L)
+      || null;
 
+    if (!L) {
+      // L ainda não carregou — tentar via import dinâmico sem bloquear o mapa
+      import('leaflet' as any).then(mod => {
+        const Ldyn = mod.default || mod;
+        if (leafRef.current !== snapshotMap) return; // mapa foi substituído
+        drawLayers(Ldyn, snapshotMap);
+      }).catch(console.warn);
+      return clearAllLayers;
+    }
+
+    drawLayers(L, snapshotMap);
+    return clearAllLayers;
+
+    function drawLayers(Lref: any, map: any) {
       routes.forEach(route => {
         if (!route.coords || route.coords.length < 2) return;
 
         const color = ercColor(route.level);
-        const poly = L.polyline(route.coords, {
-          color,
-          weight: 3,
-          opacity: 0.85,
-          dashArray: undefined,
-        }).addTo(leafRef.current);
+        let poly: any;
+        try {
+          poly = Lref.polyline(route.coords, {
+            color, weight: 3, opacity: 0.85,
+          }).addTo(map);
+        } catch {
+          return; // mapa pode já ter sido destruído entre o check e o addTo
+        }
 
-        // Hover: engrosse
         poly.on('mouseover', () => poly.setStyle({ weight: 5, opacity: 1.0 }));
-        poly.on('mouseout',  () => {
-          const isSelected = layersRef.current.get(`${route.id}__selected`);
-          if (!isSelected) poly.setStyle({ weight: 3, opacity: 0.85 });
-        });
+        poly.on('mouseout',  () => poly.setStyle({ weight: 3, opacity: 0.85 }));
         poly.on('click', () => {
           onRouteClick(route);
-          // Highlight persistente
           poly.setStyle({ weight: 5, opacity: 1.0 });
-          try {
-            leafRef.current?.fitBounds(poly.getBounds(), { padding: [30, 30] });
-          } catch { /* bounds pode ser vazio */ }
+          try { map.fitBounds(poly.getBounds(), { padding: [30, 30] }); } catch { /* */ }
         });
 
         layersRef.current.set(route.id, poly);
       });
-    }).catch(console.warn);
+    }
+  }, [routes, enabled, clearAllLayers]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    return clearAllLayers;
-  }, [routes, enabled, clearAllLayers]); // onRouteClick excluído intencionalmente (estável via useCallback no parent)
-
-  // Ao desativar: remover imediatamente
   useEffect(() => {
     if (!enabled) clearAllLayers();
   }, [enabled, clearAllLayers]);
 
-  /** Faz fitBounds numa rota específica */
   const focusRoute = useCallback((route: RoutespItem) => {
     const layer = layersRef.current.get(route.id);
     if (!layer || !leafRef.current) return;
-    // Resetar highlight das demais
-    layersRef.current.forEach((l, key) => {
-      if (!key.endsWith('__selected')) l.setStyle({ weight: 3, opacity: 0.85 });
-    });
+    layersRef.current.forEach(l => { try { l.setStyle({ weight: 3, opacity: 0.85 }); } catch { /* */ } });
     layer.setStyle({ weight: 5, opacity: 1.0 });
-    try {
-      leafRef.current.fitBounds(layer.getBounds(), { padding: [30, 30] });
-    } catch { /* */ }
+    try { leafRef.current.fitBounds(layer.getBounds(), { padding: [30, 30] }); } catch { /* */ }
   }, [leafRef]);
 
   return { focusRoute };
@@ -383,14 +382,21 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected, onMapRea
       map.fitBounds(bounds, { padding: [40, 40] });
 
       leafRef.current = map;
-      // Expor instância para o RoutePanel (ERC layers)
+      // Expor L globalmente para useErcLayers (evita import() duplicado)
+      if (typeof window !== 'undefined') (window as any).L = L;
+      // Notificar RoutePanel que o mapa está pronto
       onMapReady(map);
     };
 
     loadLeaflet().catch(console.warn);
 
     return () => {
-      if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; }
+      if (leafRef.current) {
+        leafRef.current.remove();
+        leafRef.current = null;
+        // Avisar o pai que o mapa foi destruído — useErcLayers vai ver leafRef.current === null
+        onMapReady(null);
+      }
     };
   }, [dep.icao, arr.icao, distKm]); // eslint-disable-line
 
