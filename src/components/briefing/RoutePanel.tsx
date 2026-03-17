@@ -1,6 +1,6 @@
 // src/components/briefing/RoutePanel.tsx
 'use client';
-import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Panel } from '@/components/ui/Panel';
 import styles from './RoutePanel.module.css';
 import ercStyles from './RoutePanel.routes.module.css';
@@ -325,20 +325,13 @@ interface LeafletMapProps {
   distKm: number;
   onSelect: (icao: string) => void;
   selected: string | null;
+  onMapReady: (map: any) => void;
 }
 
-/** Ref handle exposto pelo LeafletMap para acesso externo à instância Leaflet */
-interface LeafletMapHandle { getMap: () => any; }
-
-const LeafletMap = forwardRef<LeafletMapHandle, LeafletMapProps>(
-function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }, ref) {
+function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected, onMapReady }: LeafletMapProps) {
   const mapRef = useRef<any>(null);
   const leafRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
-
-  useImperativeHandle(ref, () => ({
-    getMap: () => leafRef.current,
-  }), []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -432,8 +425,8 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }, ref) {
       map.fitBounds(bounds, { padding: [40, 40] });
 
       leafRef.current = map;
-      // Expor L globalmente para useErcLayers (evita import() duplicado)
       if (typeof window !== 'undefined') (window as any).L = L;
+      onMapReady(map);
     };
 
     loadLeaflet().catch(console.warn);
@@ -479,7 +472,7 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }, ref) {
       <div ref={mapRef} className={styles.leafletMap} />
     </>
   );
-}); // end forwardRef LeafletMap
+}
 
 // ── Subcomponente: ERC Control Bar ────────────────────────
 
@@ -688,11 +681,11 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
   const [ercLevel,      setErcLevel]      = useState<ErcLevel>('ALL');
   const [selectedRoute, setSelectedRoute] = useState<RoutespItem | null>(null);
 
-  // Ref para a instância Leaflet — obtida via handle do LeafletMap
-  const leafMapRef = useRef<LeafletMapHandle>(null);
-  const getLeaf = useCallback(() => leafMapRef.current?.getMap() ?? null, []);
+  // Ref do mapa Leaflet — preenchida via onMapReady callback
+  const leafRef = useRef<any>(null);
+  const onMapReady = useCallback((map: any) => { leafRef.current = map; }, []);
 
-  // Hook de dados ERC — passa coords para filtro local
+  // Hook de dados ERC — passa coords para filtro local por corredor
   const { routes: ercRoutes, loading: ercLoading, error: ercError } = useErcRoutes(
     dep, arr,
     route ? { lat: route.dep.lat, lng: route.dep.lng } : null,
@@ -700,17 +693,12 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
     ercLevel, showErc
   );
 
-  // Hook de layers ERC no mapa — usa um ref que resolve via getLeaf()
   const handleRouteClickFromLayer = useCallback((r: RoutespItem) => {
     setSelectedRoute(r);
   }, []);
 
-  // Wrapper ref que sempre lê a instância atual do mapa
-  const ercMapProxy = useRef<any>({});
-  Object.defineProperty(ercMapProxy.current, 'current', { get: getLeaf, configurable: true });
-
   const { focusRoute } = useErcLayers(
-    ercMapProxy.current as React.MutableRefObject<any>,
+    leafRef,
     ercRoutes,
     showErc,
     handleRouteClickFromLayer
@@ -803,12 +791,12 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
 
           {/* ── Mapa Leaflet ── */}
           <LeafletMap
-            ref={leafMapRef}
             dep={route.dep} arr={route.arr}
             alternates={route.alternates}
             distKm={Math.round(route.distance*1.852)}
             onSelect={icao => setSelected(s => s===icao ? null : icao)}
             selected={selected}
+            onMapReady={onMapReady}
           />
 
           {/* ── Lista de rotas ERC ── */}
