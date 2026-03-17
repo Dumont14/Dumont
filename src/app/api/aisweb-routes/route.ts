@@ -15,13 +15,6 @@ export async function GET(req: NextRequest) {
   const ades  = searchParams.get('ades')?.toUpperCase()  ?? '';
   const level = searchParams.get('level')?.toUpperCase() ?? '';
 
-  if (!adep && !ades) {
-    return NextResponse.json(
-      { error: 'Informe ao menos adep ou ades' },
-      { status: 400 }
-    );
-  }
-
   const user = process.env.AISWEB_USER;
   const pass = process.env.AISWEB_PASS;
 
