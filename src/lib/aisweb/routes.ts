@@ -13,7 +13,7 @@ import { parseRoutespResponse } from './parseRoutespXml';
 const routeCache = new Map<string, RoutespItem[]>();
 
 function routeCacheKey(adep?: string, ades?: string, level?: ErcLevel): string {
-  return `${adep ?? ''}-${ades ?? ''}-${level ?? 'ALL'}`;
+  return `${adep ?? 'ALL'}-${ades ?? 'ALL'}-${level ?? 'ALL'}`;
 }
 
 // ── Cache de coordenadas de aeródromos ────────────────────────────────────
@@ -118,9 +118,10 @@ export async function fetchRoutesp(params: FetchRoutespParams): Promise<RoutespI
   }
 
   // Montar query string para /api/aisweb-routes
+  // Sem adep/ades = busca todas as rotas da emenda atual (700 itens)
   const query = new URLSearchParams();
-  if (adep) query.set('adep', adep);
-  if (ades) query.set('ades', ades);
+  if (adep && /^[A-Z]{4}$/.test(adep)) query.set('adep', adep);
+  if (ades && /^[A-Z]{4}$/.test(ades)) query.set('ades', ades);
   if (level && level !== 'ALL') query.set('level', level);
 
   const res = await fetch(`/api/aisweb-routes?${query.toString()}`, {
