@@ -31,7 +31,7 @@ function AtsStatus({ ats }: { ats: AtsHours }) {
   const cls    = !ats.isOpen ? styles.atsClosed : ats.closingSoon ? styles.atsWarn : styles.atsOpen;
   return (
     <span className={[styles.atsChip, cls].join(' ')}>
-      {icon} ATS {fmtMin(ats.open)}–{fmtMin(ats.close)}
+      {icon} ATS {ats.isH24 ? 'H24' : `${fmtMin(ats.open)}–${fmtMin(ats.close)}`}
       {!ats.isOpen && ' · FECHADO'}
       {ats.closingSoon && ` · fecha em ${ats.close - nowMin}min`}
     </span>
