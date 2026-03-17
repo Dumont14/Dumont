@@ -15,6 +15,9 @@ const FREQ_ORDER = ['ATIS','TWR','APP','GND','DEL','AFIS','RADIO','UNICOM','INFO
 
 function fmtAtsHours(raw: string): { label: string; isOpen: boolean; closingSoon: boolean } | null {
   if (!raw) return null;
+  if (/\bH24\b/i.test(raw)) {
+    return { label: 'H24', isOpen: true, closingSoon: false };
+  }
   const m = raw.match(/(\d{4})\s*[-–]\s*(\d{4})/);
   if (!m) return null;
   const open   = parseInt(m[1].slice(0,2)) * 60 + parseInt(m[1].slice(2,4));

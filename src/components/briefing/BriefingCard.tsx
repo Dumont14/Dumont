@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { decodeMetar, getFlightCategory } from '@/lib/weather/metar';
 import { parseTaf } from '@/lib/weather';
-import { parseNotams, extractAtsHours } from '@/lib/notam';
+import { parseNotams, extractAtsHours, parseAtsHours } from '@/lib/notam';
 import { useSunTimes } from '@/hooks/useSunTimes';
 import type { ParsedNotamEx, AtsHours } from '@/types';
 import type { ParsedTaf } from '@/lib/weather';
@@ -279,11 +279,10 @@ export function BriefingCard({ icao, label }: BriefingCardProps) {
           {/* ── ATS + FREQ + PISTAS ─────────────────── */}
           <div className={styles.infraRow}>
             {ats && <AtsStatus ats={ats} />}
-            {!ats && airport?.ats_hours && (
-              <span className={styles.atsChip + ' ' + styles.atsOpen}>
-                🟢 ATS {airport.ats_hours}
-              </span>
-            )}
+            {!ats && airport?.ats_hours && (() => {
+              const parsedAts = parseAtsHours(airport.ats_hours);
+              return parsedAts ? <AtsStatus ats={parsedAts} /> : null;
+            })()}
             {freqs.map((f: any, i: number) => (
               <span key={i} className={styles.freqChip}>
                 <span className={styles.freqType}>{f.type}</span>

@@ -230,7 +230,7 @@ function getCategory(text: string): { l: string; c: string } {
  * - Ignora números em parênteses (TEL/PHONE)
  * - Ignora sequências numéricas longas (>4 dígitos consecutivos)
  */
-function parseAtsHours(text: string): AtsHours | null {
+export function parseAtsHours(text: string): AtsHours | null {
   if (/\bH24\b/i.test(text)) {
     return { raw: 'H24', open: 0, close: 1440, isH24: true, isOpen: true, closingSoon: false };
   }

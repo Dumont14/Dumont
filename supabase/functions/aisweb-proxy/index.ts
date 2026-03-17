@@ -108,7 +108,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Parsear XML do AISWEB
+    // Parsear ROTAER XML separadamente
+    if (area === 'rotaer') {
+      const rotaer = parseROTAER(trimmed);
+      return new Response(
+        JSON.stringify({ rotaer }),
+        { headers: { ...CORS, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Parsear XML do AISWEB (NOTAMs)
     const notams = parseAISWEB(trimmed);
 
     return new Response(
@@ -124,6 +133,213 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// ── Parser ROTAER ─────────────────────────────────────────
+
+interface RotaerFrequency {
+  type:        string;
+  mhz:         string;
+  callsign:    string;
+  description: string;
+}
+
+interface RotaerRunway {
+  ident:    string;
+  length_m: number;
+  width_m:  number;
+  surface:  string;
+  closed:   boolean;
+  tora_le?: number | null;
+  tora_he?: number | null;
+}
+
+interface RotaerData {
+  icao:        string;
+  name:        string;
+  city:        string;
+  uf:          string;
+  lat:         string;
+  lng:         string;
+  alt_ft:      string;
+  utc:         string;
+  type_opr:    string;
+  type_util:   string;
+  ats_hours:   string;
+  frequencies: RotaerFrequency[];
+  runways:     RotaerRunway[];
+  remarks:     string[];
+  fuel:        string;
+}
+
+/** Extract the text content of the first matching XML tag (case-insensitive). */
+function xmlGet(xml: string, tag: string): string {
+  const m = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  if (!m) return '';
+  return m[1]
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Return all inner-HTML blocks for each matching tag. */
+function xmlGetAll(xml: string, tag: string): string[] {
+  const results: string[] = [];
+  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    results.push(m[1]);
+  }
+  return results;
+}
+
+/** Map AISWEB ATS service area codes to normalised type strings. */
+function normalizeAtsArea(area: string): string {
+  const u = area.toUpperCase().trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // strip accents
+  if (u === 'TWR' || u === 'TORRE') return 'TWR';
+  if (u === 'APP' || u === 'APPROACH' || u === 'APROXIMACAO') return 'APP';
+  if (u === 'RDO' || u === 'RADIO' || u === 'RDIO') return 'RADIO';
+  if (u === 'AFIS') return 'AFIS';
+  if (u === 'GND' || u === 'SOLO') return 'GND';
+  if (u === 'ATIS') return 'ATIS';
+  if (u === 'DEL' || u === 'DELIVERY') return 'DEL';
+  return u;
+}
+
+/** Priority order for determining primary ATS service (lower = higher priority). */
+function atsPriority(area: string): number {
+  const norm = normalizeAtsArea(area);
+  const order: Record<string, number> = { TWR: 0, APP: 1, RADIO: 2, AFIS: 3 };
+  return order[norm] ?? 10;
+}
+
+/** Build a DLY HHMM-HHMM string or return 'H24'. */
+function buildAtsHoursString(begin: string, end: string): string {
+  const b = begin.trim();
+  const e = end.trim();
+  if (!b || !e) return '';
+  if (/^H24$/i.test(b) || /^H24$/i.test(e)) return 'H24';
+  // Continuous operation: 0000-0000 or 0000-2400
+  if ((b === '0000' && (e === '0000' || e === '2400'))) return 'H24';
+  return `DLY ${b}-${e}`;
+}
+
+function parseROTAER(xml: string): RotaerData | null {
+  // The root element may be <rotaer>, <AiswebData>, <Aisweb>, etc.
+  // Try to find the main data block.
+  const rootMatch = xml.match(/<rotaer[^>]*>([\s\S]*?)<\/rotaer>/i);
+  const root = rootMatch ? rootMatch[1] : xml;
+
+  if (!root || root.trim().length < 10) return null;
+
+  // ── Basic airport fields ─────────────────────────────────
+  const icao     = xmlGet(root, 'icao') || xmlGet(root, 'icaoCode') || '';
+  const name     = xmlGet(root, 'nome') || xmlGet(root, 'name') || '';
+  const city     = xmlGet(root, 'cidade') || xmlGet(root, 'city') || xmlGet(root, 'municipio') || '';
+  const uf       = xmlGet(root, 'uf') || xmlGet(root, 'estado') || '';
+  const lat      = xmlGet(root, 'lat') || xmlGet(root, 'latitude') || '';
+  const lng      = xmlGet(root, 'lng') || xmlGet(root, 'longitude') || '';
+  const alt_ft   = xmlGet(root, 'elev') || xmlGet(root, 'elevacao') || xmlGet(root, 'alt') || '';
+  const utc      = xmlGet(root, 'utc') || xmlGet(root, 'fusoHorario') || '';
+  const type_opr = xmlGet(root, 'tipoOpr') || xmlGet(root, 'operacao') || xmlGet(root, 'type_opr') || '';
+  const type_util= xmlGet(root, 'tipoUtil') || xmlGet(root, 'utilizacao') || xmlGet(root, 'type_util') || '';
+  const fuel     = xmlGet(root, 'combustivel') || xmlGet(root, 'fuel') || '';
+
+  // ── Remarks ──────────────────────────────────────────────
+  const remarks: string[] = [];
+  const obs = xmlGet(root, 'obs') || xmlGet(root, 'observacoes') || xmlGet(root, 'remarks') || '';
+  if (obs) remarks.push(obs);
+
+  // ── Timesheets → ats_hours + frequencies ─────────────────
+  const timesheetsMatch = root.match(/<timesheets[^>]*>([\s\S]*?)<\/timesheets>/i);
+  const timesheetsXml   = timesheetsMatch ? timesheetsMatch[1] : '';
+
+  const timesheetBlocks = xmlGetAll(timesheetsXml, 'timesheet');
+
+  let primaryBegin   = '';
+  let primaryEnd     = '';
+  let primaryPriority = 99;
+  const frequencies: RotaerFrequency[] = [];
+  const seenFreqs    = new Set<string>();
+
+  for (const block of timesheetBlocks) {
+    const hol = xmlGet(block, 'hol').toLowerCase();
+    // Skip holiday-only sheets for ATS hours determination (use non-hol as primary)
+    const isHol = hol === 'true' || hol === '1';
+
+    const hoursXml = block.match(/<hours[^>]*>([\s\S]*?)<\/hours>/i)?.[1] ?? '';
+    const begin    = xmlGet(hoursXml, 'begin');
+    const end      = xmlGet(hoursXml, 'end');
+
+    // Collect frequencies from this timesheet
+    const freqsXml = block.match(/<frequencies[^>]*>([\s\S]*?)<\/frequencies>/i)?.[1] ?? '';
+    const comBlocks = xmlGetAll(freqsXml, 'com');
+
+    for (const com of comBlocks) {
+      const area  = xmlGet(com, 'area');
+      const value = xmlGet(com, 'value') || xmlGet(com, 'freq') || xmlGet(com, 'frequencia');
+      if (!area || !value) continue;
+
+      const normType = normalizeAtsArea(area);
+      const key = `${normType}:${value}`;
+      if (!seenFreqs.has(key)) {
+        seenFreqs.add(key);
+        frequencies.push({ type: normType, mhz: value, callsign: '', description: '' });
+      }
+
+      // Use this timesheet for ATS hours if it has higher priority and is not hol
+      if (!isHol && begin && end) {
+        const prio = atsPriority(area);
+        if (prio < primaryPriority) {
+          primaryPriority = prio;
+          primaryBegin    = begin;
+          primaryEnd      = end;
+        }
+      }
+    }
+
+    // Fallback: if timesheet has hours but no frequencies (airport with no coms data)
+    if (!isHol && begin && end && comBlocks.length === 0 && primaryBegin === '') {
+      primaryBegin = begin;
+      primaryEnd   = end;
+    }
+  }
+
+  const ats_hours = buildAtsHoursString(primaryBegin, primaryEnd);
+
+  // ── Runways ───────────────────────────────────────────────
+  const pistasMatch = root.match(/<(?:pistas|runways)[^>]*>([\s\S]*?)<\/(?:pistas|runways)>/i);
+  const pistasXml   = pistasMatch ? pistasMatch[1] : '';
+  const runways: RotaerRunway[] = [];
+
+  const rwyBlocks = [
+    ...xmlGetAll(pistasXml, 'pista'),
+    ...xmlGetAll(pistasXml, 'runway'),
+  ];
+
+  for (const rwy of rwyBlocks) {
+    const ident   = xmlGet(rwy, 'designador') || xmlGet(rwy, 'ident') || xmlGet(rwy, 'numero') || '';
+    const length  = xmlGet(rwy, 'comprimento') || xmlGet(rwy, 'length') || xmlGet(rwy, 'distancia') || '';
+    const width   = xmlGet(rwy, 'largura') || xmlGet(rwy, 'width') || '';
+    const surface = xmlGet(rwy, 'superficie') || xmlGet(rwy, 'surface') || '';
+    const closed  = xmlGet(rwy, 'fechada') || xmlGet(rwy, 'closed') || '';
+    const toraLe  = xmlGet(rwy, 'toraLe') || xmlGet(rwy, 'tora_le') || '';
+    const toraHe  = xmlGet(rwy, 'toraHe') || xmlGet(rwy, 'tora_he') || '';
+    if (!ident) continue;
+    runways.push({
+      ident,
+      length_m: parseInt(length) || 0,
+      width_m:  parseInt(width)  || 0,
+      surface:  surface || '',
+      closed:   closed === 'true' || closed === '1',
+      tora_le:  toraLe ? parseInt(toraLe) : null,
+      tora_he:  toraHe ? parseInt(toraHe) : null,
+    });
+  }
+
+  return { icao, name, city, uf, lat, lng, alt_ft, utc, type_opr, type_util, ats_hours, frequencies, runways, remarks, fuel };
+}
 
 // ── Parser AISWEB ─────────────────────────────────────────
 
