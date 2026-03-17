@@ -1,8 +1,11 @@
 // src/components/briefing/RoutePanel.tsx
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Panel } from '@/components/ui/Panel';
 import styles from './RoutePanel.module.css';
+import ercStyles from './RoutePanel.routes.module.css';
+import { fetchRoutesp } from '@/lib/aisweb/routes';
+import type { RoutespItem, ErcLevel } from '@/types/aisweb';
 
 interface RoutePanelProps { dep: string; arr: string; }
 
@@ -102,9 +105,170 @@ const KNOWN_AIRPORTS = [
   {icao:'SBTE',lat:-5.060,lng:-42.823},{icao:'SBSL',lat:-2.585,lng:-44.235},
   {icao:'SBRP',lat:-21.136,lng:-47.777},{icao:'SBKP',lat:-23.007,lng:-47.135},
   {icao:'SBSG',lat:-5.768,lng:-35.376},{icao:'SBJP',lat:-7.145,lng:-34.950},
-  {icao:'SBMK',lat:-16.706,lng:-43.819},{icao:'SBGO',lat:-16.632,lng:-49.221},
+  {icao:'SBMK',lat:-16.706,lng:-43.819},
   {icao:'SBTB',lat:-1.489,lng:-48.742},{icao:'SBJF',lat:-21.792,lng:-43.387},
 ];
+
+// ── Cores ERC ─────────────────────────────────────────────
+const ERC_COLOR: Record<string, string> = {
+  L: '#ff9900',
+  H: '#00aaff',
+  DEFAULT: '#00e676',
+};
+
+function ercColor(level?: string): string {
+  if (!level) return ERC_COLOR.DEFAULT;
+  return ERC_COLOR[level.toUpperCase()] ?? ERC_COLOR.DEFAULT;
+}
+
+// ── Hook: useErcRoutes ────────────────────────────────────
+// Gerencia fetch, debounce, AbortController e cache de rotas ERC.
+
+function useErcRoutes(dep: string, arr: string, level: ErcLevel, enabled: boolean) {
+  const [routes, setRoutes]   = useState<RoutespItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const abortRef              = useRef<AbortController | null>(null);
+  const timerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // Limpar ao desativar
+    if (!enabled) {
+      setRoutes([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    if (!dep || !arr) return;
+
+    // Debounce 300ms
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      // Cancelar request anterior
+      abortRef.current?.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const results = await fetchRoutesp({
+          adep: dep,
+          ades: arr,
+          level,
+          signal: ctrl.signal,
+          limit: 200,
+        });
+        if (!ctrl.signal.aborted) {
+          setRoutes(results);
+        }
+      } catch (e: unknown) {
+        if ((e as Error).name === 'AbortError') return;
+        setError((e as Error).message ?? 'Erro ao buscar rotas ERC');
+      } finally {
+        if (!ctrl.signal.aborted) setLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      abortRef.current?.abort();
+    };
+  }, [dep, arr, level, enabled]);
+
+  return { routes, loading, error };
+}
+
+// ── Hook: useErcLayers ────────────────────────────────────
+// Gerencia polylines Leaflet para rotas ERC.
+// Separado do fetch — recebe o mapa por ref e os dados como props.
+
+function useErcLayers(
+  leafRef: React.MutableRefObject<any>,
+  routes: RoutespItem[],
+  enabled: boolean,
+  onRouteClick: (route: RoutespItem) => void,
+) {
+  // Usamos um Map<routeId, leaflet layer> para evitar race conditions
+  const layersRef = useRef<Map<string, any>>(new Map());
+
+  const clearAllLayers = useCallback(() => {
+    layersRef.current.forEach(layer => {
+      try { layer.remove(); } catch { /* já removida */ }
+    });
+    layersRef.current.clear();
+  }, []);
+
+  useEffect(() => {
+    const map = leafRef.current;
+    if (!map) return;
+
+    // Remover layers anteriores
+    clearAllLayers();
+
+    if (!enabled || routes.length === 0) return;
+
+    // Importar L dinamicamente (já foi carregado pelo LeafletMap)
+    import('leaflet' as any).then(mod => {
+      const L = mod.default || mod;
+      if (!leafRef.current) return; // mapa pode ter sido destruído
+
+      routes.forEach(route => {
+        if (!route.coords || route.coords.length < 2) return;
+
+        const color = ercColor(route.level);
+        const poly = L.polyline(route.coords, {
+          color,
+          weight: 3,
+          opacity: 0.85,
+          dashArray: undefined,
+        }).addTo(leafRef.current);
+
+        // Hover: engrosse
+        poly.on('mouseover', () => poly.setStyle({ weight: 5, opacity: 1.0 }));
+        poly.on('mouseout',  () => {
+          const isSelected = layersRef.current.get(`${route.id}__selected`);
+          if (!isSelected) poly.setStyle({ weight: 3, opacity: 0.85 });
+        });
+        poly.on('click', () => {
+          onRouteClick(route);
+          // Highlight persistente
+          poly.setStyle({ weight: 5, opacity: 1.0 });
+          try {
+            leafRef.current?.fitBounds(poly.getBounds(), { padding: [30, 30] });
+          } catch { /* bounds pode ser vazio */ }
+        });
+
+        layersRef.current.set(route.id, poly);
+      });
+    }).catch(console.warn);
+
+    return clearAllLayers;
+  }, [routes, enabled, clearAllLayers]); // onRouteClick excluído intencionalmente (estável via useCallback no parent)
+
+  // Ao desativar: remover imediatamente
+  useEffect(() => {
+    if (!enabled) clearAllLayers();
+  }, [enabled, clearAllLayers]);
+
+  /** Faz fitBounds numa rota específica */
+  const focusRoute = useCallback((route: RoutespItem) => {
+    const layer = layersRef.current.get(route.id);
+    if (!layer || !leafRef.current) return;
+    // Resetar highlight das demais
+    layersRef.current.forEach((l, key) => {
+      if (!key.endsWith('__selected')) l.setStyle({ weight: 3, opacity: 0.85 });
+    });
+    layer.setStyle({ weight: 5, opacity: 1.0 });
+    try {
+      leafRef.current.fitBounds(layer.getBounds(), { padding: [30, 30] });
+    } catch { /* */ }
+  }, [leafRef]);
+
+  return { focusRoute };
+}
 
 // ── Mapa Leaflet ──────────────────────────────────────────
 const CAT_COLOR: Record<string,string> = {
@@ -118,9 +282,11 @@ interface LeafletMapProps {
   distKm: number;
   onSelect: (icao: string) => void;
   selected: string | null;
+  /** Expõe a instância do mapa Leaflet para uso externo (ERC layers) */
+  onMapReady: (map: any) => void;
 }
 
-function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }: LeafletMapProps) {
+function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected, onMapReady }: LeafletMapProps) {
   const mapRef = useRef<any>(null);
   const leafRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -128,7 +294,6 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }: Leafle
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Carregar Leaflet dinamicamente
     const loadLeaflet = async () => {
       if (!document.getElementById('leaflet-css')) {
         const link = document.createElement('link');
@@ -143,27 +308,22 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }: Leafle
       if (!mapRef.current) return;
       if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; }
 
-      // Inicializar mapa
       const map = L.map(mapRef.current, {
         zoomControl: true,
         attributionControl: false,
         scrollWheelZoom: true,
       });
 
-      // Tile layer OpenStreetMap — estilo escuro via Stadia
-      // Tile OpenStreetMap — gratuito, sem autenticação
       L.tileLayer(
         'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         { maxZoom: 18, minZoom: 3, opacity: 0.6 }
       ).addTo(map);
 
-      // Linha de rota tracejada
-      const routeLine = L.polyline(
+      L.polyline(
         [[dep.lat, dep.lng], [arr.lat, arr.lng]],
         { color: '#00aaff', weight: 2, dashArray: '8 6', opacity: 0.8 }
       ).addTo(map);
 
-      // Label de distância no centro da rota
       const midLat = (dep.lat + arr.lat) / 2;
       const midLng = (dep.lng + arr.lng) / 2;
       L.marker([midLat, midLng], {
@@ -185,7 +345,6 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }: Leafle
         zIndexOffset: -1,
       }).addTo(map);
 
-      // Ícone customizado para ADs
       const makeIcon = (color: string, size: number) => L.divIcon({
         html: `<div style="
           width:${size}px; height:${size}px; border-radius:50%;
@@ -195,7 +354,6 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }: Leafle
         className: '', iconSize: [size, size], iconAnchor: [size/2, size/2],
       });
 
-      // Marcadores dos alternativos
       markersRef.current = alternates.map(alt => {
         const col = alt.cat ? (CAT_COLOR[alt.cat] || '#4a6878') : '#4a6878';
         const marker = L.marker([alt.lat, alt.lng], { icon: makeIcon(col, 14) })
@@ -208,28 +366,25 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }: Leafle
         return marker;
       });
 
-      // Marcador DEP
       L.marker([dep.lat, dep.lng], { icon: makeIcon('#00d4ff', 18) })
         .addTo(map)
         .bindTooltip(`<b style="font-family:monospace;color:#00d4ff">${dep.icao}</b><br/>DEP`, {
           permanent: true, direction: 'top', className: 'dumont-tooltip',
         });
 
-      // Marcador ARR
       L.marker([arr.lat, arr.lng], { icon: makeIcon('#00d4ff', 18) })
         .addTo(map)
         .bindTooltip(`<b style="font-family:monospace;color:#00d4ff">${arr.icao}</b><br/>ARR`, {
           permanent: true, direction: 'top', className: 'dumont-tooltip',
         });
 
-      // Ajustar zoom para mostrar toda a rota
-      const bounds = L.latLngBounds(
-        [dep.lat, dep.lng], [arr.lat, arr.lng]
-      );
+      const bounds = L.latLngBounds([dep.lat, dep.lng], [arr.lat, arr.lng]);
       alternates.forEach(a => bounds.extend([a.lat, a.lng]));
       map.fitBounds(bounds, { padding: [40, 40] });
 
       leafRef.current = map;
+      // Expor instância para o RoutePanel (ERC layers)
+      onMapReady(map);
     };
 
     loadLeaflet().catch(console.warn);
@@ -239,7 +394,6 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }: Leafle
     };
   }, [dep.icao, arr.icao, distKm]); // eslint-disable-line
 
-  // Atualizar visual do selecionado
   useEffect(() => {
     if (!leafRef.current) return;
     // Recriar marcadores com tamanho diferente para o selecionado
@@ -275,6 +429,200 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected }: Leafle
   );
 }
 
+// ── Subcomponente: ERC Control Bar ────────────────────────
+
+interface ErcControlBarProps {
+  enabled: boolean;
+  level: ErcLevel;
+  loading: boolean;
+  error: string | null;
+  count: number;
+  onToggle: (v: boolean) => void;
+  onLevelChange: (v: ErcLevel) => void;
+}
+
+function ErcControlBar({ enabled, level, loading, error, count, onToggle, onLevelChange }: ErcControlBarProps) {
+  return (
+    <div className={ercStyles.ercBar}>
+      <label className={ercStyles.ercToggle}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={e => onToggle(e.target.checked)}
+        />
+        <span className={ercStyles.ercToggleTrack}>
+          <span className={ercStyles.ercToggleThumb} />
+        </span>
+        <span className={ercStyles.ercLabel}>ROTAS ERC</span>
+      </label>
+
+      {enabled && (
+        <div className={ercStyles.ercLevelWrap}>
+          <span>NÍV</span>
+          <select
+            className={ercStyles.ercLevelSelect}
+            value={level}
+            onChange={e => onLevelChange(e.target.value as ErcLevel)}
+          >
+            <option value="ALL">L+H</option>
+            <option value="L">L</option>
+            <option value="H">H</option>
+          </select>
+        </div>
+      )}
+
+      {enabled && loading && (
+        <div className={ercStyles.ercStatus}>
+          <span className={ercStyles.ercStatusDot} />
+          buscando…
+        </div>
+      )}
+
+      {enabled && error && !loading && (
+        <div className={`${ercStyles.ercStatus} ${ercStyles.ercStatusError}`}>
+          ⚠ {error}
+        </div>
+      )}
+
+      {enabled && !loading && !error && count > 0 && (
+        <div className={ercStyles.ercStatus}>
+          <span className={ercStyles.ercCount}>{count}</span>&nbsp;rota{count !== 1 ? 's' : ''}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Subcomponente: ERC Route List ─────────────────────────
+
+interface ErcRouteListProps {
+  routes: RoutespItem[];
+  selected: RoutespItem | null;
+  onSelect: (route: RoutespItem) => void;
+  onFocus: (route: RoutespItem) => void;
+  onClose: () => void;
+}
+
+function ErcRouteList({ routes, selected, onSelect, onFocus, onClose }: ErcRouteListProps) {
+  const [open, setOpen] = useState(true);
+
+  if (routes.length === 0) {
+    return (
+      <div className={ercStyles.ercEmpty}>
+        Nenhuma rota ERC encontrada para este par.
+      </div>
+    );
+  }
+
+  function levelBadgeClass(level?: string) {
+    if (!level) return ercStyles.ercLevelOther;
+    const up = level.toUpperCase();
+    if (up === 'L') return ercStyles.ercLevelL;
+    if (up === 'H') return ercStyles.ercLevelH;
+    return ercStyles.ercLevelOther;
+  }
+
+  return (
+    <div className={ercStyles.ercSection}>
+      <div
+        className={ercStyles.ercSectionHeader}
+        onClick={() => setOpen(o => !o)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
+        aria-expanded={open}
+      >
+        <span className={`${ercStyles.ercChevron} ${open ? ercStyles.ercChevronOpen : ''}`}>▶</span>
+        <span className={ercStyles.ercSectionTitle}>ROTAS PREFERENCIAIS ({routes.length})</span>
+      </div>
+
+      {open && (
+        <>
+          {/* Detalhe da rota selecionada */}
+          {selected && (
+            <div className={ercStyles.ercDetail}>
+              <div className={ercStyles.ercDetailHeader}>
+                <span className={`${ercStyles.ercLevelBadge} ${levelBadgeClass(selected.level)}`}>
+                  {selected.level ?? '?'}
+                </span>
+                <span className={ercStyles.ercDetailIdent}>
+                  {selected.ident ?? selected.id}
+                </span>
+                {selected.type && <span style={{ color: '#4a6878', fontSize: 10 }}>{selected.type}</span>}
+                <button className={ercStyles.ercDetailClose} onClick={onClose} title="Fechar">✕</button>
+              </div>
+              {selected.route && (
+                <div className={ercStyles.ercDetailRoute}>{selected.route}</div>
+              )}
+            </div>
+          )}
+
+          <ul className={ercStyles.ercRouteList}>
+            {routes.map(route => {
+              const hasCoords = route.coords && route.coords.length >= 2;
+              const isSelected = selected?.id === route.id;
+              return (
+                <li
+                  key={route.id}
+                  className={[
+                    ercStyles.ercRouteItem,
+                    isSelected ? ercStyles.ercRouteItemSelected : '',
+                    !hasCoords ? ercStyles.ercRouteItemNoCoords : '',
+                  ].join(' ')}
+                  onClick={() => hasCoords ? onSelect(route) : undefined}
+                  role={hasCoords ? 'button' : undefined}
+                  tabIndex={hasCoords ? 0 : undefined}
+                  onKeyDown={e => hasCoords && e.key === 'Enter' && onSelect(route)}
+                  title={hasCoords ? 'Clique para ver no mapa' : 'Sem coordenadas disponíveis'}
+                >
+                  <span className={`${ercStyles.ercLevelBadge} ${levelBadgeClass(route.level)}`}>
+                    {route.level ?? '?'}
+                  </span>
+                  <span className={ercStyles.ercRouteIdent}>
+                    {route.ident ?? route.id}
+                  </span>
+                  {route.type && (
+                    <span className={ercStyles.ercRouteType}>{route.type}</span>
+                  )}
+                  {route.route && (
+                    <span className={ercStyles.ercRouteFixes} title={route.route}>
+                      {route.route}
+                    </span>
+                  )}
+                  {!hasCoords && (
+                    <span className={ercStyles.ercNoCoords}>sem coords</span>
+                  )}
+
+                  <div className={ercStyles.ercRouteActions}>
+                    {hasCoords && (
+                      <button
+                        className={ercStyles.ercRouteBtn}
+                        onClick={e => { e.stopPropagation(); onFocus(route); }}
+                        title="Ir para no mapa"
+                      >
+                        ⊕ mapa
+                      </button>
+                    )}
+                    {route.pdfUrl && (
+                      <button
+                        className={ercStyles.ercRouteBtn}
+                        onClick={e => { e.stopPropagation(); window.open(route.pdfUrl, '_blank'); }}
+                        title="Abrir carta PDF"
+                      >
+                        PDF
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Componente principal ──────────────────────────────────
 
 export function RoutePanel({ dep, arr }: RoutePanelProps) {
@@ -283,6 +631,40 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
   const [error,    setError]    = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
+  // ERC state
+  const [showErc,       setShowErc]       = useState(false);
+  const [ercLevel,      setErcLevel]      = useState<ErcLevel>('ALL');
+  const [selectedRoute, setSelectedRoute] = useState<RoutespItem | null>(null);
+
+  // Ref do mapa Leaflet — preenchida via onMapReady callback
+  const leafRef = useRef<any>(null);
+  const onMapReady = useCallback((map: any) => {
+    leafRef.current = map;
+  }, []);
+
+  // Hook de dados ERC
+  const { routes: ercRoutes, loading: ercLoading, error: ercError } = useErcRoutes(
+    dep, arr, ercLevel, showErc
+  );
+
+  // Hook de layers ERC no mapa
+  const handleRouteClickFromLayer = useCallback((route: RoutespItem) => {
+    setSelectedRoute(route);
+  }, []);
+
+  const { focusRoute } = useErcLayers(
+    leafRef,
+    ercRoutes,
+    showErc,
+    handleRouteClickFromLayer
+  );
+
+  // Ao desativar ERC, limpar seleção de rota
+  useEffect(() => {
+    if (!showErc) setSelectedRoute(null);
+  }, [showErc]);
+
+  // ── Fetch de rota principal ────────────────────────────
   useEffect(() => {
     if (!dep || !arr) return;
     setLoading(true); setError(null); setRoute(null); setSelected(null);
@@ -303,7 +685,6 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
       const decl     = await fetchDeclination((dLat+aLat)/2,(dLng+aLng)/2);
       const heading  = (bearing-decl+360)%360;
 
-      // Alternativos na rota (80NM)
       const alts = KNOWN_AIRPORTS
         .filter(a => a.icao !== dep && a.icao !== arr)
         .map(a => { const r=crossTrackDist(a.lat,a.lng,dLat,dLng,aLat,aLng); return {...a,...r}; })
@@ -352,7 +733,16 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
 
       {route && (
         <>
-
+          {/* ── ERC Control Bar ── */}
+          <ErcControlBar
+            enabled={showErc}
+            level={ercLevel}
+            loading={ercLoading}
+            error={ercError}
+            count={ercRoutes.length}
+            onToggle={setShowErc}
+            onLevelChange={setErcLevel}
+          />
 
           {/* ── Mapa Leaflet ── */}
           <LeafletMap
@@ -361,7 +751,22 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
             distKm={Math.round(route.distance*1.852)}
             onSelect={icao => setSelected(s => s===icao ? null : icao)}
             selected={selected}
+            onMapReady={onMapReady}
           />
+
+          {/* ── Lista de rotas ERC ── */}
+          {showErc && !ercLoading && (
+            <ErcRouteList
+              routes={ercRoutes}
+              selected={selectedRoute}
+              onSelect={route => {
+                setSelectedRoute(r => r?.id === route.id ? null : route);
+                focusRoute(route);
+              }}
+              onFocus={focusRoute}
+              onClose={() => setSelectedRoute(null)}
+            />
+          )}
 
           {/* ── Alternativo selecionado ── */}
           {selectedAlt && (
