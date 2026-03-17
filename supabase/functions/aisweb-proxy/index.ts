@@ -214,6 +214,53 @@ function atsPriority(area: string): number {
   return order[norm] ?? 10;
 }
 
+/** Convert a HHMM string to minutes since midnight. Returns -1 if invalid. */
+function hhmmToMin(s: string): number {
+  if (!s || s.length !== 4) return -1;
+  const h = parseInt(s.slice(0, 2), 10);
+  const m = parseInt(s.slice(2, 4), 10);
+  if (isNaN(h) || isNaN(m) || h < 0 || m < 0 || h > 23 || m > 59) return -1;
+  return h * 60 + m;
+}
+
+/**
+ * Returns true when the given set of HHMM intervals collectively covers a full
+ * 24-hour period (with up to 2-minute tolerance for adjacent slots like 2059/2100).
+ * Handles overnight intervals (end < begin) correctly.
+ */
+function intervalsAreH24(intervals: Array<{ begin: string; end: string }>): boolean {
+  if (intervals.length < 2) return false;
+
+  const segments: Array<[number, number]> = [];
+  for (const { begin, end } of intervals) {
+    const b = hhmmToMin(begin);
+    const e = hhmmToMin(end);
+    if (b < 0 || e < 0) continue;
+    if (e > b) {
+      segments.push([b, e + 1]); // +1: convert inclusive end to exclusive upper bound
+    } else {
+      // Overnight: wraps around midnight
+      segments.push([b, 1440]);
+      segments.push([0, e + 1]);
+    }
+  }
+  if (segments.length === 0) return false;
+
+  segments.sort((a, b) => a[0] - b[0]);
+
+  const merged: Array<[number, number]> = [[segments[0][0], segments[0][1]]];
+  for (let i = 1; i < segments.length; i++) {
+    const last = merged[merged.length - 1];
+    if (segments[i][0] <= last[1] + 2) {
+      last[1] = Math.max(last[1], segments[i][1]);
+    } else {
+      merged.push([segments[i][0], segments[i][1]]);
+    }
+  }
+
+  return merged.length === 1 && merged[0][0] === 0 && merged[0][1] >= 1440;
+}
+
 /** Build a DLY HHMM-HHMM string or return 'H24'. */
 function buildAtsHoursString(begin: string, end: string): string {
   const b = begin.trim();
@@ -260,6 +307,7 @@ function parseROTAER(xml: string): RotaerData | null {
   let primaryBegin   = '';
   let primaryEnd     = '';
   let primaryPriority = 99;
+  const nonHolIntervals: Array<{ begin: string; end: string }> = [];
   const frequencies: RotaerFrequency[] = [];
   const seenFreqs    = new Set<string>();
 
@@ -304,9 +352,17 @@ function parseROTAER(xml: string): RotaerData | null {
       primaryBegin = begin;
       primaryEnd   = end;
     }
+
+    // Collect all non-holiday intervals for complementary H24 detection
+    if (!isHol && begin && end) {
+      nonHolIntervals.push({ begin, end });
+    }
   }
 
-  const ats_hours = buildAtsHoursString(primaryBegin, primaryEnd);
+  // If multiple non-holiday timesheets together cover 24h, this is an H24 airport
+  const ats_hours = intervalsAreH24(nonHolIntervals)
+    ? 'H24'
+    : buildAtsHoursString(primaryBegin, primaryEnd);
 
   // ── Runways ───────────────────────────────────────────────
   const pistasMatch = root.match(/<(?:pistas|runways)[^>]*>([\s\S]*?)<\/(?:pistas|runways)>/i);
