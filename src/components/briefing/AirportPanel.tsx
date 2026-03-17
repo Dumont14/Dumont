@@ -24,8 +24,14 @@ function fmtAtsHours(raw: string): { label: string; isOpen: boolean; closingSoon
   const close  = parseInt(m[2].slice(0,2)) * 60 + parseInt(m[2].slice(2,4));
   const now    = new Date();
   const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
-  const isOpen      = nowMin >= open && nowMin < close;
-  const closingSoon = isOpen && (close - nowMin) <= 60;
+  const overnight      = close <= open;
+  const isOpen         = overnight
+    ? (nowMin >= open || nowMin < close)
+    : (nowMin >= open && nowMin < close);
+  const minutesToClose = overnight
+    ? (nowMin >= open ? (1440 - nowMin) + close : close - nowMin)
+    : (close - nowMin);
+  const closingSoon = isOpen && minutesToClose <= 60;
   const fmt = (n: number) =>
     `${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}Z`;
   const days  = raw.match(/^([A-Z/]+)/)?.[1] || 'DLY';

@@ -173,10 +173,10 @@ interface RotaerData {
 
 /** Extract the text content of the first matching XML tag (case-insensitive). */
 function xmlGet(xml: string, tag: string): string {
-  const m = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  const m = xml.match(new RegExp(`<${tag}[^>]*>(.*?)<\\/${tag}>`, 'is'));
   if (!m) return '';
   return m[1]
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/<!\[CDATA\[(.*?)\]\]>/gs, '$1')
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -185,7 +185,7 @@ function xmlGet(xml: string, tag: string): string {
 /** Return all inner-HTML blocks for each matching tag. */
 function xmlGetAll(xml: string, tag: string): string[] {
   const results: string[] = [];
-  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+  const re = new RegExp(`<${tag}[^>]*>(.*?)<\\/${tag}>`, 'gis');
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) !== null) {
     results.push(m[1]);
@@ -269,8 +269,8 @@ function parseROTAER(xml: string): RotaerData | null {
     const isHol = hol === 'true' || hol === '1';
 
     const hoursXml = block.match(/<hours[^>]*>([\s\S]*?)<\/hours>/i)?.[1] ?? '';
-    const begin    = xmlGet(hoursXml, 'begin');
-    const end      = xmlGet(hoursXml, 'end');
+    const begin    = xmlGet(hoursXml, 'begin') || xmlGet(block, 'begin');
+    const end      = xmlGet(hoursXml, 'end')   || xmlGet(block, 'end');
 
     // Collect frequencies from this timesheet
     const freqsXml = block.match(/<frequencies[^>]*>([\s\S]*?)<\/frequencies>/i)?.[1] ?? '';

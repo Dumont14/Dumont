@@ -263,8 +263,14 @@ export function parseAtsHours(text: string): AtsHours | null {
   const now    = new Date();
   const nowMin = now.getUTCHours() * 60 + now.getUTCMinutes();
 
-  const isOpen      = nowMin >= open && nowMin < close;
-  const closingSoon = isOpen && (close - nowMin) <= 60;
+  const overnight      = close <= open;
+  const isOpen         = overnight
+    ? (nowMin >= open || nowMin < close)
+    : (nowMin >= open && nowMin < close);
+  const minutesToClose = overnight
+    ? (nowMin >= open ? (1440 - nowMin) + close : close - nowMin)
+    : (close - nowMin);
+  const closingSoon = isOpen && minutesToClose <= 60;
   const opensIn     = !isOpen
     ? (nowMin < open ? open - nowMin : 1440 - nowMin + open)
     : undefined;
