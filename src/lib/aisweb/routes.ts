@@ -46,29 +46,22 @@ async function resolveAirportCoord(
   }
 }
 
-/** Extrai tokens que parecem ICAOs brasileiros/internacionais (4 letras maiúsculas) */
-function extractIcaoTokens(routeStr: string): string[] {
-  const tokens = routeStr.toUpperCase().split(/[\s,/]+/);
-  return [...new Set(
-    tokens.filter(t => /^[A-Z]{4}$/.test(t))
-  )];
-}
-
 /**
- * Tenta popular coords[] em cada RoutespItem resolvendo tokens ICAO
- * da string route. Faz lookups em batch (Promise.all) com cache.
- * Itens sem coords suficientes ficam com coords undefined (sem polyline).
+ * Popula coords[] em cada RoutespItem usando adep e ades como endpoints.
+ * O campo <route> contém airways + waypoints RNAV (não ICAOs de aeródromo),
+ * por isso usamos apenas DEP e ARR para desenhar a polyline.
+ * Faz lookups em batch (Promise.all) com cache de aeródromos.
  */
 async function resolveCoords(
   routes: RoutespItem[],
   signal?: AbortSignal
 ): Promise<RoutespItem[]> {
-  // Coletar todos os ICAOs únicos que precisam de resolução
+  // Coletar todos os ICAOs de adep/ades únicos
   const allIcaos = new Set<string>();
   for (const r of routes) {
-    if (r.coords && r.coords.length >= 2) continue; // já tem coords
-    if (!r.route) continue;
-    extractIcaoTokens(r.route).forEach(t => allIcaos.add(t));
+    if (r.coords && r.coords.length >= 2) continue;
+    if (r.adep) allIcaos.add(r.adep.toUpperCase());
+    if (r.ades) allIcaos.add(r.ades.toUpperCase());
   }
 
   // Resolver todos em paralelo (batch)
@@ -76,19 +69,17 @@ async function resolveCoords(
     Array.from(allIcaos).map(icao => resolveAirportCoord(icao, signal))
   );
 
-  // Agora popular coords em cada rota usando o cache
+  // Popular coords: linha reta adep → ades (suficiente para overlay visual)
   return routes.map(r => {
-    if (r.coords && r.coords.length >= 2) return r; // já populado
-    if (!r.route) return r;
+    if (r.coords && r.coords.length >= 2) return r;
 
-    const tokens = extractIcaoTokens(r.route);
-    const coords: [number, number][] = [];
-    for (const t of tokens) {
-      const coord = airportCoordCache.get(t);
-      if (coord) coords.push(coord);
+    const depCoord = r.adep ? airportCoordCache.get(r.adep.toUpperCase()) : null;
+    const arrCoord = r.ades ? airportCoordCache.get(r.ades.toUpperCase()) : null;
+
+    if (depCoord && arrCoord) {
+      return { ...r, coords: [depCoord, arrCoord] };
     }
-
-    return coords.length >= 2 ? { ...r, coords } : r;
+    return r;
   });
 }
 
