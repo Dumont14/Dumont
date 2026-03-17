@@ -2,7 +2,7 @@
 
 import type { ParsedNotamEx, NotamSeverity, AtsHours, ScheduleStatus } from '@/types';
 
-const isBrazilian = (icao: string) => /^SB[A-Z]{2}$/i.test(icao);
+const isBrazilian = (icao: string) => /^S[BDINPRSW][A-Z]{2}$/i.test(icao);
 
 // ── FETCH ────────────────────────────────────────────────
 
