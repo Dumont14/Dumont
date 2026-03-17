@@ -13,19 +13,32 @@ function getText(el: Element, tag: string): string | undefined {
 /**
  * Tenta parsear uma string (XML ou JSON) retornada pelo proxy.
  * Sempre retorna array — nunca lança.
+ * Loga o raw completo no console para facilitar depuração do formato AISWEB.
  */
 export function parseRoutespResponse(raw: string): RoutespItem[] {
   if (!raw || typeof raw !== 'string') return [];
 
   const trimmed = raw.trim();
 
+  // ── Log do raw completo para depuração (remover em produção) ──────────────
+  console.group('[AeroBrief] AISWEB routesp raw response');
+  console.log('Primeiros 500 chars:', trimmed.slice(0, 500));
+  console.log('Tamanho total:', trimmed.length);
+  console.groupEnd();
+
   // ── JSON ─────────────────────────────────────────────────────────────────
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     try {
       const parsed = JSON.parse(trimmed);
+      // Log da estrutura para identificar os campos corretos
+      if (Array.isArray(parsed)) {
+        console.debug('[parseRoutespResponse] JSON array, primeiro item:', parsed[0]);
+      } else {
+        console.debug('[parseRoutespResponse] JSON object keys:', Object.keys(parsed));
+      }
       const items: unknown[] = Array.isArray(parsed)
         ? parsed
-        : parsed.data ?? parsed.routesp ?? parsed.items ?? parsed.routes ?? [parsed];
+        : parsed.data ?? parsed.rotasp ?? parsed.routesp ?? parsed.items ?? parsed.routes ?? parsed.response ?? [parsed];
       return items.map(normalizeJsonItem).filter(Boolean) as RoutespItem[];
     } catch (e) {
       console.debug('[parseRoutespResponse] JSON parse failed:', e);
@@ -39,31 +52,54 @@ export function parseRoutespResponse(raw: string): RoutespItem[] {
       const doc = new DOMParser().parseFromString(trimmed, 'text/xml');
       const parseError = doc.querySelector('parsererror');
       if (parseError) {
-        console.debug('[parseRoutespResponse] XML parse error:', parseError.textContent);
+        console.warn('[parseRoutespResponse] XML parse error:', parseError.textContent);
         return [];
       }
 
+      // Log do root para identificar a estrutura
+      const root = doc.documentElement;
+      console.debug('[parseRoutespResponse] XML root tag:', root?.tagName,
+        '| children:', Array.from(root?.children ?? []).map(c => c.tagName));
+
       // Tenta vários possíveis tag names para os itens
-      const candidates = ['routesp', 'route', 'item', 'row', 'Route', 'RouteItem'];
+      // Inclui variações específicas do AISWEB DECEA
+      const candidates = [
+        'rotasp', 'ROTASP',        // nome real provável na API AISWEB
+        'routesp', 'ROUTESP',
+        'rota', 'ROTA',
+        'route', 'Route',
+        'item', 'Item',
+        'row', 'Row',
+        'RouteItem',
+      ];
       let elements: Element[] = [];
+      let matchedTag = '';
       for (const tag of candidates) {
         const found = Array.from(doc.getElementsByTagName(tag));
-        if (found.length > 0) { elements = found; break; }
+        if (found.length > 0) { elements = found; matchedTag = tag; break; }
       }
+      console.debug('[parseRoutespResponse] matched tag:', matchedTag || 'none',
+        '| elements found:', elements.length);
 
       // Fallback: filhos diretos do root
-      if (elements.length === 0 && doc.documentElement) {
-        elements = Array.from(doc.documentElement.children);
+      if (elements.length === 0 && root) {
+        elements = Array.from(root.children);
+        console.debug('[parseRoutespResponse] fallback to root children:', elements.length,
+          elements.map(e => e.tagName));
+      }
+
+      if (elements.length > 0) {
+        console.debug('[parseRoutespResponse] primeiro elemento XML:', elements[0].outerHTML.slice(0, 300));
       }
 
       return elements.map(normalizeXmlItem).filter(Boolean) as RoutespItem[];
     } catch (e) {
-      console.debug('[parseRoutespResponse] XML processing failed:', e);
+      console.warn('[parseRoutespResponse] XML processing failed:', e);
       return [];
     }
   }
 
-  console.debug('[parseRoutespResponse] Unknown format, first 80 chars:', trimmed.slice(0, 80));
+  console.warn('[parseRoutespResponse] Formato desconhecido, primeiros 80 chars:', trimmed.slice(0, 80));
   return [];
 }
 
