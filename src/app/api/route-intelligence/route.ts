@@ -3,8 +3,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const REDEMET_KEY  = process.env.REDEMET_KEY ?? process.env.REDEMET_API_KEY ?? '';
-const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY ?? process.env.ANTHROPIC_API_KEY ?? '';
+const REDEMET_KEY  = process.env.REDEMET_KEY ?? '';
+const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY ?? '';
 
 // ── Helpers REDEMET ───────────────────────────────────────
 function redemetWindow(hoursBack = 6) {
