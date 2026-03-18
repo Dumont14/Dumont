@@ -1,9 +1,12 @@
+//src/app/page.tsx
+
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
 import { Disclaimer }       from '@/components/ui/Disclaimer';
 import { BriefingCard }     from '@/components/briefing/BriefingCard';
 import { RoutePanel }       from '@/components/briefing/RoutePanel';
+import { ProceduresPanel }  from '@/components/briefing/ProceduresPanel';
 import { ProceduresPanel }  from '@/components/briefing/ProceduresPanel';
 import { ActivityFeed }     from '@/components/feed/ActivityFeed';
 import { DumontButton }     from '@/components/dumont/DumontButton';
@@ -156,10 +159,16 @@ export default function HomePage() {
                       <RoutePanel dep={activeDep} arr={activeArr} />
                     </div>
                   )}
+                  {activeArr && (
+                    <div className={[styles.carouselItem, styles.carouselRoute].join(' ')}>
+                      <ProceduresPanel dep={activeDep} arr={activeArr} />
+                    </div>
+                  )}
                 </div>
 
                 {hasRoute && (
                   <div className={styles.carouselDots}>
+                    <span className={styles.carouselDot} />
                     <span className={styles.carouselDot} />
                     <span className={styles.carouselDot} />
                     <span className={styles.carouselDot} />
