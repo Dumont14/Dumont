@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Disclaimer }    from '@/components/ui/Disclaimer';
-import { BriefingCard }  from '@/components/briefing/BriefingCard';
-import { RoutePanel }    from '@/components/briefing/RoutePanel';
-import { ActivityFeed }  from '@/components/feed/ActivityFeed';
-import { DumontButton }  from '@/components/dumont/DumontButton';
+import { Disclaimer }       from '@/components/ui/Disclaimer';
+import { BriefingCard }     from '@/components/briefing/BriefingCard';
+import { RoutePanel }       from '@/components/briefing/RoutePanel';
+import { ProceduresPanel }  from '@/components/briefing/ProceduresPanel';
+import { ActivityFeed }     from '@/components/feed/ActivityFeed';
+import { DumontButton }     from '@/components/dumont/DumontButton';
 import styles from './page.module.css';
 
 function UtcClock() {
@@ -28,7 +29,7 @@ export default function HomePage() {
   const [activeArr, setActiveArr] = useState('');
   const [feedOpen, setFeedOpen]   = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>('brief');
-  const [bubbleOpen, setBubbleOpen] = useState(false); // ✅ NOVO: controla se bubble está aberto
+  const [bubbleOpen, setBubbleOpen] = useState(false);
 
   const runBriefing = useCallback(() => {
     const d = dep.trim().toUpperCase();
@@ -47,9 +48,7 @@ export default function HomePage() {
   }, []);
 
   const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      runBriefing();
-    }
+    if (e.key === 'Enter') runBriefing();
   };
 
   const hasRoute = !!(activeDep && activeArr);
@@ -93,7 +92,6 @@ export default function HomePage() {
                   placeholder="SBSP"
                   maxLength={4}
                   autoComplete="off"
-                  // ✅ NOVO: bloquear apenas se bubble está aberto
                   disabled={bubbleOpen}
                 />
               </div>
@@ -109,15 +107,13 @@ export default function HomePage() {
                   placeholder="SBBE"
                   maxLength={4}
                   autoComplete="off"
-                  // ✅ NOVO: bloquear apenas se bubble está aberto
                   disabled={bubbleOpen}
                 />
               </div>
             </div>
-            <button 
-              className={styles.briefBtn} 
+            <button
+              className={styles.briefBtn}
               onClick={runBriefing}
-              // ✅ NOVO: bloquear apenas se bubble está aberto
               disabled={bubbleOpen}
             >
               BRIEF
@@ -162,7 +158,6 @@ export default function HomePage() {
                   )}
                 </div>
 
-                {/* Indicadores de scroll (mobile) */}
                 {hasRoute && (
                   <div className={styles.carouselDots}>
                     <span className={styles.carouselDot} />
@@ -176,6 +171,13 @@ export default function HomePage() {
               {activeArr && (
                 <div className={styles.routeDesktop}>
                   <RoutePanel dep={activeDep} arr={activeArr} />
+                </div>
+              )}
+
+              {/* ── PROCEDIMENTOS (desktop) ── */}
+              {activeArr && (
+                <div className={styles.routeDesktop}>
+                  <ProceduresPanel dep={activeDep} arr={activeArr} />
                 </div>
               )}
             </>
@@ -217,8 +219,7 @@ export default function HomePage() {
         </button>
       </nav>
 
-      {/* ✅ NOVO: passar callback para sincronizar estado do bubble */}
-      <DumontButton 
+      <DumontButton
         onIcaoDetected={handleDumontIcao}
         onBubbleStateChange={setBubbleOpen}
       />
