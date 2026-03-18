@@ -304,3 +304,140 @@
   background: rgba(0,170,255,.06);
 }
 .cartaBtnView:hover { background: rgba(0,170,255,.15); }
+
+/* ── Modal overlay ───────────────────────────────────────── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  background: var(--bg, #060a0e);
+  border: 1px solid var(--brdg);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  box-shadow: 0 8px 40px rgba(0,0,0,.8);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--brd);
+  background: rgba(0,170,255,.06);
+  flex-shrink: 0;
+}
+
+.modalNome {
+  font-family: var(--mono);
+  font-size: 0.80rem;
+  color: var(--acc2);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modalActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.modalBtn {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--acc2);
+  border: 1px solid var(--acc);
+  background: rgba(0,170,255,.08);
+  padding: 3px 10px;
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.modalBtn:hover { background: rgba(0,170,255,.2); }
+
+.modalClose {
+  background: none;
+  border: 1px solid var(--brd);
+  color: var(--txtd);
+  width: 24px; height: 24px;
+  cursor: pointer;
+  font-size: 0.65rem;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: border-color .15s, color .15s;
+}
+.modalClose:hover { border-color: var(--txtd); color: var(--txt); }
+
+.modalBody {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.modalObject {
+  width: 100%;
+  height: 100%;
+  min-height: 60vh;
+  display: block;
+}
+
+.modalFallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  height: 60vh;
+  color: var(--txtd);
+  font-family: var(--mono);
+  font-size: 0.80rem;
+}
+
+/* Botão VER e nome clicável */
+.cartaNomeBtn {
+  background: none;
+  border: none;
+  color: var(--txtb);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: left;
+  flex: 1;
+  padding: 0;
+  transition: color .15s;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cartaNomeBtn:hover { color: var(--acc2); }
+
+.cartaBtnView {
+  color: var(--acc2);
+  border-color: var(--acc);
+  background: rgba(0,170,255,.06);
+}
+.cartaBtnView:hover { background: rgba(0,170,255,.15); }
+
+/* Mobile */
+@media (max-width: 600px) {
+  .modal { max-height: 95vh; }
+  .modalObject { min-height: 70vh; }
+}
