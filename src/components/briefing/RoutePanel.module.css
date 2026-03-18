@@ -1,128 +1,186 @@
-/* src/components/briefing/RoutePanel.module.css */
 
-.msg  { font-family:var(--mono); font-size:0.85rem; display:flex; align-items:center; gap:8px; color:var(--txtd); padding:4px 0; }
-.warn { font-family:var(--mono); font-size:0.85rem; color:var(--amb); padding:4px 0; }
-
-/* ── Métricas em linha ───────────────────────────────── */
-.metricsRow {
+/* ── Espaço aéreo ────────────────────────────────────────── */
+.airspaceRow {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 0 10px;
+  gap: 20px;
+  padding: 8px 0;
   border-bottom: 1px solid var(--brd);
-  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
-.metric {
+.airspaceItem {
   display: flex;
   align-items: baseline;
   gap: 6px;
 }
 
-.metricLabel {
+.airspaceLabel {
   font-family: var(--disp);
-  font-size: 0.42rem;
-  letter-spacing: 2px;
+  font-size: 0.62rem;
+  letter-spacing: 1.5px;
   color: var(--txtd);
 }
 
-.metricVal {
+.airspaceVal {
   font-family: var(--disp);
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 1.5px;
   color: var(--acc2);
-  letter-spacing: 2px;
-  line-height: 1;
+  font-weight: 700;
 }
 
-.metric:nth-child(3) .metricVal { color: var(--grn); }
-
-.unit {
-  font-size: 0.55rem;
-  color: var(--txtd);
-  letter-spacing: 1px;
-  margin-left: 3px;
+/* ── FL recomendado ──────────────────────────────────────── */
+.flSection {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--brd);
 }
 
-.metricSep {
-  color: var(--brdg);
-  font-size: 1rem;
-  line-height: 1;
-  opacity: .5;
+.flHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  flex-wrap: wrap;
 }
 
-/* ── Mapa Leaflet ────────────────────────────────────── */
-.leafletMap {
-  width: 100%;
-  height: 280px;
+.flToggle {
+  display: flex;
   border: 1px solid var(--brd);
-  margin-bottom: 10px;
-  background: #0a1018;
 }
 
-/* Inverter tiles OSM para tema dark */
-.leafletMap :global(.leaflet-tile-pane) {
-  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+.flTab {
+  background: none;
+  border: none;
+  color: var(--txtd);
+  font-family: var(--disp);
+  font-size: 0.62rem;
+  letter-spacing: 1px;
+  padding: 1px 8px;
+  cursor: pointer;
+  transition: color .15s, background .15s;
 }
 
-/* ── Alternativo selecionado ─────────────────────────── */
-.altDetail {
-  border: 1px solid var(--brdg);
-  background: rgba(0,170,255,.04);
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  animation: fadeUp .2s ease;
-}
-.altHeader {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 6px; flex-wrap: wrap;
-}
-.altIcao  { font-family:var(--disp); font-size:0.88rem; letter-spacing:2px; color:var(--acc2); }
-.altCat   { font-family:var(--disp); font-size:0.58rem; letter-spacing:2px; font-weight:700; }
-.altDist  { font-family:var(--mono); font-size:0.68rem; color:var(--txtd); margin-left:auto; }
-.altClose {
-  background:none; border:1px solid var(--brd); color:var(--txtd);
-  width:20px; height:20px; cursor:pointer; font-size:0.6rem;
-  display:flex; align-items:center; justify-content:center;
-}
-.altClose:hover { border-color:var(--txtd); }
-.altMetar {
-  font-family:var(--mono); font-size:0.68rem; color:var(--txt);
-  white-space:pre-wrap; word-break:break-word; line-height:1.6;
-}
-.altNoMetar { font-family:var(--mono); font-size:0.72rem; color:var(--txtd); }
+.flTab:hover { color: var(--txtb); }
 
-/* ── Lista de alternativos ───────────────────────────── */
-.altList { margin-bottom: 8px; }
-.altListLabel {
-  font-family:var(--disp); font-size:0.44rem; letter-spacing:2px;
-  color:var(--txtd); display:block; margin-bottom:6px;
-}
-.altChips { display:flex; flex-wrap:wrap; gap:6px; }
-.altChip {
-  display:flex; align-items:center; gap:6px;
-  padding:4px 10px;
-  background:rgba(0,0,0,.25); border:1px solid var(--brd);
-  cursor:pointer; transition:all .15s;
-}
-.altChip:hover    { background:rgba(0,170,255,.08); border-color:var(--acc); }
-.altChipSel       { background:rgba(0,170,255,.1); border-color:var(--acc)!important; }
-.altChipIcao      { font-family:var(--disp); font-size:0.55rem; letter-spacing:1.5px; color:var(--txtb); }
-.altChipCat       { font-family:var(--disp); font-size:0.48rem; letter-spacing:1.5px; font-weight:700; }
-.altChipDist      { font-family:var(--mono); font-size:0.62rem; color:var(--txtd); }
-
-.disclaimer {
-  font-family:var(--mono); font-size:0.58rem;
-  color:var(--txtd); line-height:1.5; opacity:.7;
+.flTabActive {
+  background: rgba(0,170,255,.15);
+  border: none;
+  color: var(--acc2);
+  font-family: var(--disp);
+  font-size: 0.62rem;
+  letter-spacing: 1px;
+  padding: 1px 8px;
+  cursor: pointer;
 }
 
-/* ── Mobile ──────────────────────────────────────────── */
-@media (max-width: 900px) {
-  .leafletMap   { height: 300px; }
-  .metricVal    { font-size: 1rem; }
-  .metricLabel  { font-size: 0.50rem; }
-  .altChipIcao  { font-size: var(--fs-sm-m); }
-  .altMetar     { font-size: var(--fs-sm-m); }
-  .disclaimer   { font-size: var(--fs-xs-m); }
+.flHint {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--txtd);
+  margin-left: auto;
+}
+
+.flChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.flChip {
+  font-family: var(--disp);
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  color: var(--acc2);
+  background: rgba(0,170,255,.08);
+  border: 1px solid rgba(0,170,255,.25);
+  padding: 2px 8px;
+}
+
+/* ── SIGMET ──────────────────────────────────────────────── */
+.sigmetSection {
+  border-bottom: 1px solid var(--brd);
+  padding: 6px 0 8px;
+  margin-bottom: 4px;
+}
+.sigmetBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sigmetLabel {
+  font-family: var(--disp);
+  font-size: 0.62rem;
+  letter-spacing: 1.5px;
+  color: var(--txtd);
+  flex-shrink: 0;
+}
+.sigmetLoading {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--txtd);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.sigmetClear {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: #00e676;
+}
+.sigmetCount {
+  font-family: var(--disp);
+  font-size: 0.72rem;
+  letter-spacing: 1px;
+  color: #ff4444;
+  font-weight: 700;
+}
+.sigmetError {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--amb);
+}
+.sigmetList {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sigmetItem {
+  border: 1px solid rgba(255,68,68,.3);
+  background: rgba(255,68,68,.04);
+  padding: 6px 10px;
+}
+.sigmetItemHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 3px;
+}
+.sigmetFir {
+  font-family: var(--disp);
+  font-size: 0.68rem;
+  letter-spacing: 1.5px;
+  color: var(--acc2);
+}
+.sigmetFenomeno {
+  font-family: var(--disp);
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+.sigmetValidade {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--txtd);
+  margin-left: auto;
+}
+.sigmetMens {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--txtd);
+  line-height: 1.5;
+  word-break: break-all;
 }

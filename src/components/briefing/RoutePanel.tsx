@@ -3,32 +3,28 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Panel } from '@/components/ui/Panel';
 import styles from './RoutePanel.module.css';
-import ercStyles from './RoutePanel.routes.module.css';
-import { fetchRoutesp } from '@/lib/aisweb/routes';
-import type { RoutespItem, ErcLevel } from '@/types/aisweb';
 
 interface RoutePanelProps { dep: string; arr: string; }
-
-interface AirportCoord {
-  icao: string; lat: number; lng: number; name: string;
-}
-
+interface AirportCoord { icao: string; lat: number; lng: number; name: string; }
 interface AlternateAD {
-  icao:          string;
-  lat:           number;
-  lng:           number;
-  distNM:        number;
-  posAlongRoute: number;
-  metar:         string | null;
-  cat:           string | null;
+  icao: string; lat: number; lng: number;
+  distNM: number; posAlongRoute: number;
+  metar: string | null; cat: string | null;
 }
-
 interface RouteData {
-  dep:       AirportCoord;
-  arr:       AirportCoord;
-  distance:  number;
-  heading:   number;
+  dep: AirportCoord; arr: AirportCoord;
+  distance: number; heading: number;
   alternates: AlternateAD[];
+  firs: string[];
+}
+interface SigmetItem {
+  id_fir: string;
+  validade_inicial: string;
+  validade_final: string;
+  mens: string;
+  fenomeno: string;
+  fenomeno_comp: string;
+  fenomeno_cor: string;
 }
 
 // ── Geodésicos ────────────────────────────────────────────
@@ -41,23 +37,16 @@ function distNM(lat1: number, lon1: number, lat2: number, lon2: number): number 
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*DEG)*Math.cos(lat2*DEG)*Math.sin(dLon/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
-
 function trueBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const φ1=lat1*DEG, φ2=lat2*DEG, Δλ=(lon2-lon1)*DEG;
   const x=Math.sin(Δλ)*Math.cos(φ2);
   const y=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
   return (Math.atan2(x,y)*RAD+360)%360;
 }
-
 function interpolate(lat1: number, lon1: number, lat2: number, lon2: number, t: number): [number,number] {
   return [lat1+(lat2-lat1)*t, lon1+(lon2-lon1)*t];
 }
-
-function crossTrackDist(
-  lat: number, lon: number,
-  lat1: number, lon1: number,
-  lat2: number, lon2: number
-): { dist: number; along: number } {
+function crossTrackDist(lat: number, lon: number, lat1: number, lon1: number, lat2: number, lon2: number): { dist: number; along: number } {
   const totalDist = distNM(lat1,lon1,lat2,lon2);
   if (totalDist < 0.1) return { dist: distNM(lat,lon,lat1,lon1), along: 0 };
   const dx=lon2-lon1, dy=lat2-lat1;
@@ -65,12 +54,11 @@ function crossTrackDist(
   const [pLat,pLon]=interpolate(lat1,lon1,lat2,lon2,t);
   return { dist: distNM(lat,lon,pLat,pLon), along: t };
 }
-
 async function fetchDeclination(lat: number, lon: number): Promise<number> {
   try {
     const year = new Date().getUTCFullYear();
     const res = await fetch(
-    `https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination?lat=${lat}&lon=${lon}&startYear=${year}&resultFormat=json`,  
+      `https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination?lat=${lat}&lon=${lon}&startYear=${year}&resultFormat=json`,
       { signal: AbortSignal.timeout(5000) }
     );
     const data = await res.json();
@@ -79,8 +67,26 @@ async function fetchDeclination(lat: number, lon: number): Promise<number> {
     return -19+(lat+5)*0.25+(lon+55)*(-0.15);
   }
 }
-
 function fmt3(deg: number) { return String(Math.round(deg)).padStart(3,'0')+'°'; }
+
+// ── FIRs ─────────────────────────────────────────────────
+const FIR_IDS = ['SBAO','SBRE','SBBS','SBAZ','SBCW'];
+const FIR_BOUNDS: Record<string, (lat: number, lng: number) => boolean> = {
+  SBAO: (lat, lng) => lng < -20 && lat > -20,
+  SBRE: (lat, lng) => lat > -15 && lng > -48 && lng < -32,
+  SBBS: (lat, lng) => lat < -5 && lat > -25 && lng > -55 && lng < -38,
+  SBAZ: (lat, lng) => lng < -55 && lat > -15,
+  SBCW: (lat, lng) => lat < -20 && lng > -58,
+};
+function estimateFirs(depLat: number, depLng: number, arrLat: number, arrLng: number): string[] {
+  const firs = new Set<string>();
+  for (let t = 0; t <= 1; t += 0.125) {
+    const lat = depLat + (arrLat-depLat)*t;
+    const lng = depLng + (arrLng-depLng)*t;
+    FIR_IDS.forEach(id => { if (FIR_BOUNDS[id](lat, lng)) firs.add(id); });
+  }
+  return [...firs];
+}
 
 // ── ADs conhecidos ────────────────────────────────────────
 const KNOWN_AIRPORTS = [
@@ -105,226 +111,89 @@ const KNOWN_AIRPORTS = [
   {icao:'SBTE',lat:-5.060,lng:-42.823},{icao:'SBSL',lat:-2.585,lng:-44.235},
   {icao:'SBRP',lat:-21.136,lng:-47.777},{icao:'SBKP',lat:-23.007,lng:-47.135},
   {icao:'SBSG',lat:-5.768,lng:-35.376},{icao:'SBJP',lat:-7.145,lng:-34.950},
-  {icao:'SBMK',lat:-16.706,lng:-43.819},
-  {icao:'SBTB',lat:-1.489,lng:-48.742},{icao:'SBJF',lat:-21.792,lng:-43.387},
+  {icao:'SBMK',lat:-16.706,lng:-43.819},{icao:'SBTB',lat:-1.489,lng:-48.742},
+  {icao:'SBJF',lat:-21.792,lng:-43.387},{icao:'SBEG',lat:-3.038,lng:-60.050},
 ];
 
-// ── Cores ERC ─────────────────────────────────────────────
-const ERC_COLOR: Record<string, string> = {
-  L: '#ff9900',
-  H: '#00aaff',
-  DEFAULT: '#00e676',
-};
-
-function ercColor(level?: string): string {
-  if (!level) return ERC_COLOR.DEFAULT;
-  return ERC_COLOR[level.toUpperCase()] ?? ERC_COLOR.DEFAULT;
-}
-
-// ── Hook: useErcRoutes ────────────────────────────────────
-// Busca TODAS as rotas ERC (sem filtro adep/ades — a API é por FIR)
-// e filtra localmente pelas que têm adep/ades próximos à rota DEP→ARR.
-
-/** Distância em NM entre dois pontos */
-function haversineNM(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 3440.065, d = Math.PI/180;
-  const dLat = (lat2-lat1)*d, dLng = (lng2-lng1)*d;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*d)*Math.cos(lat2*d)*Math.sin(dLng/2)**2;
-  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-
-/** Verifica se um ponto está dentro de um corredor em torno da rota DEP→ARR */
-function nearRoute(
-  ptLat: number, ptLng: number,
-  depLat: number, depLng: number,
-  arrLat: number, arrLng: number,
-  thresholdNM: number
-): boolean {
-  // Cross-track distance simplificada (planar — ok para distâncias < 2000NM)
-  const dx = arrLng - depLng, dy = arrLat - depLat;
-  const lenSq = dx*dx + dy*dy;
-  if (lenSq < 1e-10) return haversineNM(ptLat, ptLng, depLat, depLng) <= thresholdNM;
-  const t = Math.max(0, Math.min(1, ((ptLng-depLng)*dx + (ptLat-depLat)*dy) / lenSq));
-  const projLat = depLat + t*dy, projLng = depLng + t*dx;
-  return haversineNM(ptLat, ptLng, projLat, projLng) <= thresholdNM;
-}
-
-function useErcRoutes(
-  dep: string, arr: string,
-  depCoords: { lat: number; lng: number } | null,
-  arrCoords: { lat: number; lng: number } | null,
-  level: ErcLevel,
-  enabled: boolean
-) {
-  const [routes, setRoutes]   = useState<RoutespItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-  const abortRef              = useRef<AbortController | null>(null);
-  const timerRef              = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Rota total em NM para definir threshold dinâmico
-  const routeNM = depCoords && arrCoords
-    ? haversineNM(depCoords.lat, depCoords.lng, arrCoords.lat, arrCoords.lng)
-    : 0;
-
-  useEffect(() => {
-    if (!enabled) {
-      setRoutes([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-    if (!dep || !arr || !depCoords || !arrCoords) return;
-
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(async () => {
-      abortRef.current?.abort();
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
-      setLoading(true);
-      setError(null);
-
-      try {
-        // Buscar TODAS as rotas — API organizada por FIR, não por par
-        const all = await fetchRoutesp({
-          level: level !== 'ALL' ? level : undefined,
-          signal: ctrl.signal,
-          limit: 700,
-        });
-        if (ctrl.signal.aborted) return;
-
-        // Threshold: 15% da distância total, mínimo 300NM, máximo 600NM
-        const threshold = Math.min(600, Math.max(300, routeNM * 0.15));
-
-        // Filtrar: rotas cujos adep E ades estão dentro do corredor
-        const filtered = all.filter(r => {
-          if (!r.coords || r.coords.length < 2) return false;
-          const [dLat, dLng] = r.coords[0];
-          const [aLat, aLng] = r.coords[r.coords.length - 1];
-          return (
-            nearRoute(dLat, dLng, depCoords.lat, depCoords.lng, arrCoords.lat, arrCoords.lng, threshold) &&
-            nearRoute(aLat, aLng, depCoords.lat, depCoords.lng, arrCoords.lat, arrCoords.lng, threshold)
-          );
-        });
-
-        setRoutes(filtered);
-      } catch (e: unknown) {
-        if ((e as Error).name === 'AbortError') return;
-        setError((e as Error).message ?? 'Erro ao buscar rotas ERC');
-      } finally {
-        if (!ctrl.signal.aborted) setLoading(false);
-      }
-    }, 300);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      abortRef.current?.abort();
-    };
-  }, [dep, arr, level, enabled, depCoords?.lat, depCoords?.lng, arrCoords?.lat, arrCoords?.lng]); // eslint-disable-line
-
-  return { routes, loading, error };
-}
-
-// ── Hook: useErcLayers ────────────────────────────────────
-// Gerencia polylines Leaflet para rotas ERC.
-// Separado do fetch — recebe o mapa por ref e os dados como props.
-
-function useErcLayers(
-  leafRef: React.MutableRefObject<any>,
-  routes: RoutespItem[],
-  enabled: boolean,
-  onRouteClick: (route: RoutespItem) => void,
-) {
-  const layersRef = useRef<Map<string, any>>(new Map());
-
-  const clearAllLayers = useCallback(() => {
-    layersRef.current.forEach(layer => {
-      try { layer.remove(); } catch { /* já removida */ }
-    });
-    layersRef.current.clear();
-  }, []);
-
-  useEffect(() => {
-    // Capturar snapshot do mapa no momento do efeito.
-    // Se o mapa for destruído e recriado, snapshotMap !== leafRef.current
-    // e as polylines antigas já terão sido removidas no cleanup.
-    const snapshotMap = leafRef.current;
-    if (!snapshotMap) return;
-
-    clearAllLayers();
-    if (!enabled || routes.length === 0) return;
-
-    // L já está disponível em window após o LeafletMap carregar
-    const L = (typeof window !== 'undefined' && (window as any).L)
-      || null;
-
-    if (!L) {
-      // L ainda não carregou — tentar via import dinâmico sem bloquear o mapa
-      import('leaflet' as any).then(mod => {
-        const Ldyn = mod.default || mod;
-        if (leafRef.current !== snapshotMap) return; // mapa foi substituído
-        drawLayers(Ldyn, snapshotMap);
-      }).catch(console.warn);
-      return clearAllLayers;
-    }
-
-    drawLayers(L, snapshotMap);
-    return clearAllLayers;
-
-    function drawLayers(Lref: any, map: any) {
-      routes.forEach(route => {
-        if (!route.coords || route.coords.length < 2) return;
-
-        const color = ercColor(route.level);
-        let poly: any;
-        try {
-          poly = Lref.polyline(route.coords, {
-            color, weight: 3, opacity: 0.85,
-          }).addTo(map);
-        } catch {
-          return; // mapa pode já ter sido destruído entre o check e o addTo
-        }
-
-        poly.on('mouseover', () => poly.setStyle({ weight: 5, opacity: 1.0 }));
-        poly.on('mouseout',  () => poly.setStyle({ weight: 3, opacity: 0.85 }));
-        poly.on('click', () => {
-          onRouteClick(route);
-          poly.setStyle({ weight: 5, opacity: 1.0 });
-          try { map.fitBounds(poly.getBounds(), { padding: [30, 30] }); } catch { /* */ }
-        });
-
-        layersRef.current.set(route.id, poly);
-      });
-    }
-  }, [routes, enabled, clearAllLayers]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!enabled) clearAllLayers();
-  }, [enabled, clearAllLayers]);
-
-  const focusRoute = useCallback((route: RoutespItem) => {
-    const layer = layersRef.current.get(route.id);
-    if (!layer || !leafRef.current) return;
-    layersRef.current.forEach(l => { try { l.setStyle({ weight: 3, opacity: 0.85 }); } catch { /* */ } });
-    layer.setStyle({ weight: 5, opacity: 1.0 });
-    try { leafRef.current.fitBounds(layer.getBounds(), { padding: [30, 30] }); } catch { /* */ }
-  }, [leafRef]);
-
-  return { focusRoute };
-}
-
-// ── Mapa Leaflet ──────────────────────────────────────────
 const CAT_COLOR: Record<string,string> = {
   VMC:'#00e676', MVFR:'#ffab00', IFR:'#ff3d3d', LIFR:'#ff00cc',
 };
 
+// ── Hook: useSigmet ───────────────────────────────────────
+function useSigmet(firs: string[]) {
+  const [sigmets, setSigmets] = useState<SigmetItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const firsKey = firs.join(',');
+
+  useEffect(() => {
+    if (!firsKey) return;
+    setLoading(true); setError(null);
+    const ctrl = new AbortController();
+    fetch('/api/sigmet', { signal: ctrl.signal })
+      .then(r => r.json())
+      .then(data => {
+        if (!data?.data?.data) { setSigmets([]); return; }
+        const now = Date.now();
+        const filtered: SigmetItem[] = data.data.data.filter((s: SigmetItem) => {
+          if (!firs.includes(s.id_fir)) return false;
+          const fim = new Date(s.validade_final.replace(' ','T')+'Z').getTime();
+          return fim > now;
+        });
+        setSigmets(filtered);
+      })
+      .catch(e => { if (e.name !== 'AbortError') setError(e.message); })
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
+  }, [firsKey]); // eslint-disable-line
+
+  return { sigmets, loading, error };
+}
+
+// ── SigmetBar ─────────────────────────────────────────────
+function SigmetBar({ firs }: { firs: string[] }) {
+  const { sigmets, loading, error } = useSigmet(firs);
+
+  return (
+    <div className={styles.sigmetSection}>
+      <div className={styles.sigmetBar}>
+        <span className={styles.sigmetLabel}>SIGMET</span>
+        {loading && <span className={styles.sigmetLoading}><span className="spin" /> buscando…</span>}
+        {error && !loading && <span className={styles.sigmetError}>⚠ {error}</span>}
+        {!loading && !error && sigmets.length === 0 && (
+          <span className={styles.sigmetClear}>✓ nenhum ativo na rota</span>
+        )}
+        {!loading && !error && sigmets.length > 0 && (
+          <span className={styles.sigmetCount}>⚠ {sigmets.length} ativo{sigmets.length > 1 ? 's' : ''}</span>
+        )}
+      </div>
+      {sigmets.length > 0 && (
+        <ul className={styles.sigmetList}>
+          {sigmets.map((s, i) => (
+            <li key={i} className={styles.sigmetItem}>
+              <div className={styles.sigmetItemHeader}>
+                <span className={styles.sigmetFir}>{s.id_fir}</span>
+                <span className={styles.sigmetFenomeno} style={{ color: s.fenomeno_cor || '#ff4444' }}>
+                  {s.fenomeno}
+                </span>
+                <span className={styles.sigmetValidade}>
+                  {s.validade_inicial.slice(11,16)}–{s.validade_final.slice(11,16)}Z
+                </span>
+              </div>
+              <div className={styles.sigmetMens}>{s.mens}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ── Mapa Leaflet ──────────────────────────────────────────
 interface LeafletMapProps {
-  dep: AirportCoord;
-  arr: AirportCoord;
-  alternates: AlternateAD[];
-  distKm: number;
-  onSelect: (icao: string) => void;
-  selected: string | null;
+  dep: AirportCoord; arr: AirportCoord;
+  alternates: AlternateAD[]; distKm: number;
+  onSelect: (icao: string) => void; selected: string | null;
   onMapReady: (map: any) => void;
 }
 
@@ -335,381 +204,78 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected, onMapRea
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    const loadLeaflet = async () => {
+    const load = async () => {
       if (!document.getElementById('leaflet-css')) {
         const link = document.createElement('link');
-        link.id = 'leaflet-css';
-        link.rel = 'stylesheet';
+        link.id = 'leaflet-css'; link.rel = 'stylesheet';
         link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
         document.head.appendChild(link);
       }
-
       const L = (await import('leaflet' as any)).default || (await import('leaflet' as any));
-
       if (!mapRef.current) return;
       if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; }
 
-      const map = L.map(mapRef.current, {
-        zoomControl: true,
-        attributionControl: false,
-        scrollWheelZoom: true,
-      });
+      const map = L.map(mapRef.current, { zoomControl: true, attributionControl: false, scrollWheelZoom: true });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, minZoom: 3, opacity: 0.6 }).addTo(map);
+      L.polyline([[dep.lat, dep.lng], [arr.lat, arr.lng]], { color: '#00aaff', weight: 2, dashArray: '8 6', opacity: 0.8 }).addTo(map);
 
-      L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        { maxZoom: 18, minZoom: 3, opacity: 0.6 }
-      ).addTo(map);
-
-      L.polyline(
-        [[dep.lat, dep.lng], [arr.lat, arr.lng]],
-        { color: '#00aaff', weight: 2, dashArray: '8 6', opacity: 0.8 }
-      ).addTo(map);
-
-      const midLat = (dep.lat + arr.lat) / 2;
-      const midLng = (dep.lng + arr.lng) / 2;
-      L.marker([midLat, midLng], {
-        icon: L.divIcon({
-          html: `<div style="
-            background:rgba(6,10,14,.85);
-            border:1px solid #00aaff55;
-            color:#00d4ff;
-            font-family:'Share Tech Mono',monospace;
-            font-size:11px;
-            padding:2px 8px;
-            white-space:nowrap;
-            letter-spacing:1px;
-          ">${distKm} km</div>`,
-          className: '',
-          iconAnchor: [30, 10],
-        }),
-        interactive: false,
-        zIndexOffset: -1,
+      const mid = [(dep.lat+arr.lat)/2, (dep.lng+arr.lng)/2] as [number,number];
+      L.marker(mid, {
+        icon: L.divIcon({ html: `<div style="background:rgba(6,10,14,.85);border:1px solid #00aaff55;color:#00d4ff;font-family:'Share Tech Mono',monospace;font-size:11px;padding:2px 8px;white-space:nowrap;letter-spacing:1px;">${distKm} km</div>`, className: '', iconAnchor: [30,10] }),
+        interactive: false, zIndexOffset: -1,
       }).addTo(map);
 
-      const makeIcon = (color: string, size: number) => L.divIcon({
-        html: `<div style="
-          width:${size}px; height:${size}px; border-radius:50%;
-          background:${color}22; border:2px solid ${color};
-          box-shadow:0 0 6px ${color}88;
-        "></div>`,
-        className: '', iconSize: [size, size], iconAnchor: [size/2, size/2],
+      const mkIcon = (color: string, size: number) => L.divIcon({
+        html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color}22;border:2px solid ${color};box-shadow:0 0 6px ${color}88;"></div>`,
+        className: '', iconSize: [size,size], iconAnchor: [size/2,size/2],
       });
 
       markersRef.current = alternates.map(alt => {
         const col = alt.cat ? (CAT_COLOR[alt.cat] || '#4a6878') : '#4a6878';
-        const marker = L.marker([alt.lat, alt.lng], { icon: makeIcon(col, 14) })
+        return L.marker([alt.lat, alt.lng], { icon: mkIcon(col, 14) })
           .addTo(map)
-          .bindTooltip(`<b style="font-family:monospace;color:${col}">${alt.icao}</b><br/>${alt.cat||'—'} · ${alt.distNM}NM`, {
-            permanent: false, direction: 'top',
-            className: 'dumont-tooltip',
-          })
+          .bindTooltip(`<b style="font-family:monospace;color:${col}">${alt.icao}</b><br/>${alt.cat||'—'} · ${alt.distNM}NM`, { permanent: false, direction: 'top', className: 'dumont-tooltip' })
           .on('click', () => onSelect(alt.icao));
-        return marker;
       });
 
-      L.marker([dep.lat, dep.lng], { icon: makeIcon('#00d4ff', 18) })
-        .addTo(map)
-        .bindTooltip(`<b style="font-family:monospace;color:#00d4ff">${dep.icao}</b><br/>DEP`, {
-          permanent: true, direction: 'top', className: 'dumont-tooltip',
-        });
-
-      L.marker([arr.lat, arr.lng], { icon: makeIcon('#00d4ff', 18) })
-        .addTo(map)
-        .bindTooltip(`<b style="font-family:monospace;color:#00d4ff">${arr.icao}</b><br/>ARR`, {
-          permanent: true, direction: 'top', className: 'dumont-tooltip',
-        });
+      (['DEP','ARR'] as const).forEach((lbl, i) => {
+        const pt = i === 0 ? dep : arr;
+        L.marker([pt.lat, pt.lng], { icon: mkIcon('#00d4ff', 18) })
+          .addTo(map)
+          .bindTooltip(`<b style="font-family:monospace;color:#00d4ff">${pt.icao}</b><br/>${lbl}`, { permanent: true, direction: 'top', className: 'dumont-tooltip' });
+      });
 
       const bounds = L.latLngBounds([dep.lat, dep.lng], [arr.lat, arr.lng]);
       alternates.forEach(a => bounds.extend([a.lat, a.lng]));
       map.fitBounds(bounds, { padding: [40, 40] });
-
       leafRef.current = map;
       if (typeof window !== 'undefined') (window as any).L = L;
       onMapReady(map);
     };
-
-    loadLeaflet().catch(console.warn);
-
-    return () => {
-      if (leafRef.current) {
-        leafRef.current.remove();
-        leafRef.current = null;
-      }
-    };
+    load().catch(console.warn);
+    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; } };
   }, [dep.icao, arr.icao, distKm]); // eslint-disable-line
 
-  useEffect(() => {
-    if (!leafRef.current) return;
-    // Recriar marcadores com tamanho diferente para o selecionado
-  }, [selected]);
+  useEffect(() => { if (!leafRef.current) return; }, [selected]);
 
   return (
     <>
-      <style>{`
-        .dumont-tooltip {
-          background: rgba(6,10,14,.92) !important;
-          border: 1px solid #162535 !important;
-          color: #b8cdd8 !important;
-          font-family: 'Share Tech Mono', monospace !important;
-          font-size: 11px !important;
-          border-radius: 2px !important;
-          box-shadow: 0 2px 8px rgba(0,0,0,.5) !important;
-          padding: 4px 8px !important;
-        }
-        .dumont-tooltip::before { display: none !important; }
-        .leaflet-control-zoom {
-          border: 1px solid #162535 !important;
-          background: rgba(6,10,14,.9) !important;
-        }
-        .leaflet-control-zoom a {
-          background: transparent !important;
-          color: #b8cdd8 !important;
-          border-bottom: 1px solid #162535 !important;
-        }
-        .leaflet-control-zoom a:hover { background: rgba(0,170,255,.15) !important; }
-      `}</style>
+      <style>{`.dumont-tooltip{background:rgba(6,10,14,.92)!important;border:1px solid #162535!important;color:#b8cdd8!important;font-family:'Share Tech Mono',monospace!important;font-size:11px!important;border-radius:2px!important;box-shadow:0 2px 8px rgba(0,0,0,.5)!important;padding:4px 8px!important}.dumont-tooltip::before{display:none!important}.leaflet-control-zoom{border:1px solid #162535!important;background:rgba(6,10,14,.9)!important}.leaflet-control-zoom a{background:transparent!important;color:#b8cdd8!important;border-bottom:1px solid #162535!important}.leaflet-control-zoom a:hover{background:rgba(0,170,255,.15)!important}`}</style>
       <div ref={mapRef} className={styles.leafletMap} />
     </>
   );
 }
 
-// ── Subcomponente: ERC Control Bar ────────────────────────
-
-interface ErcControlBarProps {
-  enabled: boolean;
-  level: ErcLevel;
-  loading: boolean;
-  error: string | null;
-  count: number;
-  onToggle: (v: boolean) => void;
-  onLevelChange: (v: ErcLevel) => void;
-}
-
-function ErcControlBar({ enabled, level, loading, error, count, onToggle, onLevelChange }: ErcControlBarProps) {
-  return (
-    <div className={ercStyles.ercBar}>
-      <label className={ercStyles.ercToggle}>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={e => onToggle(e.target.checked)}
-        />
-        <span className={ercStyles.ercToggleTrack}>
-          <span className={ercStyles.ercToggleThumb} />
-        </span>
-        <span className={ercStyles.ercLabel}>ROTAS ERC</span>
-      </label>
-
-      {enabled && (
-        <div className={ercStyles.ercLevelWrap}>
-          <span>NÍV</span>
-          <select
-            className={ercStyles.ercLevelSelect}
-            value={level}
-            onChange={e => onLevelChange(e.target.value as ErcLevel)}
-          >
-            <option value="ALL">L+H</option>
-            <option value="L">L</option>
-            <option value="H">H</option>
-          </select>
-        </div>
-      )}
-
-      {enabled && loading && (
-        <div className={ercStyles.ercStatus}>
-          <span className={ercStyles.ercStatusDot} />
-          buscando…
-        </div>
-      )}
-
-      {enabled && error && !loading && (
-        <div className={`${ercStyles.ercStatus} ${ercStyles.ercStatusError}`}>
-          ⚠ {error}
-        </div>
-      )}
-
-      {enabled && !loading && !error && count > 0 && (
-        <div className={ercStyles.ercStatus}>
-          <span className={ercStyles.ercCount}>{count}</span>&nbsp;rota{count !== 1 ? 's' : ''}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Subcomponente: ERC Route List ─────────────────────────
-
-interface ErcRouteListProps {
-  routes: RoutespItem[];
-  selected: RoutespItem | null;
-  onSelect: (route: RoutespItem) => void;
-  onFocus: (route: RoutespItem) => void;
-  onClose: () => void;
-}
-
-function ErcRouteList({ routes, selected, onSelect, onFocus, onClose }: ErcRouteListProps) {
-  const [open, setOpen] = useState(true);
-
-  if (routes.length === 0) {
-    return (
-      <div className={ercStyles.ercEmpty}>
-        Nenhuma rota ERC encontrada para este par.
-      </div>
-    );
-  }
-
-  function levelBadgeClass(level?: string) {
-    if (!level) return ercStyles.ercLevelOther;
-    const up = level.toUpperCase();
-    if (up === 'L') return ercStyles.ercLevelL;
-    if (up === 'H') return ercStyles.ercLevelH;
-    return ercStyles.ercLevelOther;
-  }
-
-  return (
-    <div className={ercStyles.ercSection}>
-      <div
-        className={ercStyles.ercSectionHeader}
-        onClick={() => setOpen(o => !o)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
-        aria-expanded={open}
-      >
-        <span className={`${ercStyles.ercChevron} ${open ? ercStyles.ercChevronOpen : ''}`}>▶</span>
-        <span className={ercStyles.ercSectionTitle}>ROTAS PREFERENCIAIS ({routes.length})</span>
-      </div>
-
-      {open && (
-        <>
-          {/* Detalhe da rota selecionada */}
-          {selected && (
-            <div className={ercStyles.ercDetail}>
-              <div className={ercStyles.ercDetailHeader}>
-                <span className={`${ercStyles.ercLevelBadge} ${levelBadgeClass(selected.level)}`}>
-                  {selected.level ?? '?'}
-                </span>
-                <span className={ercStyles.ercDetailIdent}>
-                  {selected.ident ?? selected.id}
-                </span>
-                {selected.type && <span style={{ color: '#4a6878', fontSize: 10 }}>{selected.type}</span>}
-                <button className={ercStyles.ercDetailClose} onClick={onClose} title="Fechar">✕</button>
-              </div>
-              {selected.route && (
-                <div className={ercStyles.ercDetailRoute}>{selected.route}</div>
-              )}
-            </div>
-          )}
-
-          <ul className={ercStyles.ercRouteList}>
-            {routes.map(route => {
-              const hasCoords = route.coords && route.coords.length >= 2;
-              const isSelected = selected?.id === route.id;
-              return (
-                <li
-                  key={route.id}
-                  className={[
-                    ercStyles.ercRouteItem,
-                    isSelected ? ercStyles.ercRouteItemSelected : '',
-                    !hasCoords ? ercStyles.ercRouteItemNoCoords : '',
-                  ].join(' ')}
-                  onClick={() => hasCoords ? onSelect(route) : undefined}
-                  role={hasCoords ? 'button' : undefined}
-                  tabIndex={hasCoords ? 0 : undefined}
-                  onKeyDown={e => hasCoords && e.key === 'Enter' && onSelect(route)}
-                  title={hasCoords ? 'Clique para ver no mapa' : 'Sem coordenadas disponíveis'}
-                >
-                  <span className={`${ercStyles.ercLevelBadge} ${levelBadgeClass(route.level)}`}>
-                    {route.level ?? '?'}
-                  </span>
-                  <span className={ercStyles.ercRouteIdent}>
-                    {route.ident ?? route.id}
-                  </span>
-                  {route.type && (
-                    <span className={ercStyles.ercRouteType}>{route.type}</span>
-                  )}
-                  {route.route && (
-                    <span className={ercStyles.ercRouteFixes} title={route.route}>
-                      {route.route}
-                    </span>
-                  )}
-                  {!hasCoords && (
-                    <span className={ercStyles.ercNoCoords}>sem coords</span>
-                  )}
-
-                  <div className={ercStyles.ercRouteActions}>
-                    {hasCoords && (
-                      <button
-                        className={ercStyles.ercRouteBtn}
-                        onClick={e => { e.stopPropagation(); onFocus(route); }}
-                        title="Ir para no mapa"
-                      >
-                        ⊕ mapa
-                      </button>
-                    )}
-                    {route.pdfUrl && (
-                      <button
-                        className={ercStyles.ercRouteBtn}
-                        onClick={e => { e.stopPropagation(); window.open(route.pdfUrl, '_blank'); }}
-                        title="Abrir carta PDF"
-                      >
-                        PDF
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-    </div>
-  );
-}
-
 // ── Componente principal ──────────────────────────────────
-
 export function RoutePanel({ dep, arr }: RoutePanelProps) {
   const [route,    setRoute]    = useState<RouteData | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  // ERC state
-  const [showErc,       setShowErc]       = useState(false);
-  const [ercLevel,      setErcLevel]      = useState<ErcLevel>('ALL');
-  const [selectedRoute, setSelectedRoute] = useState<RoutespItem | null>(null);
-
-  // Ref do mapa Leaflet — preenchida via onMapReady callback
   const leafRef = useRef<any>(null);
   const onMapReady = useCallback((map: any) => { leafRef.current = map; }, []);
 
-  // Hook de dados ERC — passa coords para filtro local por corredor
-  const { routes: ercRoutes, loading: ercLoading, error: ercError } = useErcRoutes(
-    dep, arr,
-    route ? { lat: route.dep.lat, lng: route.dep.lng } : null,
-    route ? { lat: route.arr.lat, lng: route.arr.lng } : null,
-    ercLevel, showErc
-  );
-
-  const handleRouteClickFromLayer = useCallback((r: RoutespItem) => {
-    setSelectedRoute(r);
-  }, []);
-
-  const { focusRoute } = useErcLayers(
-    leafRef,
-    ercRoutes,
-    showErc,
-    handleRouteClickFromLayer
-  );
-
-  // Ao desativar ERC, limpar seleção de rota
-  useEffect(() => {
-    if (!showErc) setSelectedRoute(null);
-  }, [showErc]);
-
-  // ── Fetch de rota principal ────────────────────────────
   useEffect(() => {
     if (!dep || !arr) return;
     setLoading(true); setError(null); setRoute(null); setSelected(null);
@@ -720,7 +286,6 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
     ]).then(async ([dData, aData]) => {
       if (dData.error) throw new Error(`DEP: ${dData.error}`);
       if (aData.error) throw new Error(`ARR: ${aData.error}`);
-
       const dLat=parseFloat(dData.lat), dLng=parseFloat(dData.lng);
       const aLat=parseFloat(aData.lat), aLng=parseFloat(aData.lng);
       if (isNaN(dLat)||isNaN(aLat)) throw new Error('Coordenadas indisponíveis');
@@ -734,27 +299,22 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
         .filter(a => a.icao !== dep && a.icao !== arr)
         .map(a => { const r=crossTrackDist(a.lat,a.lng,dLat,dLng,aLat,aLng); return {...a,...r}; })
         .filter(a => a.dist<=80 && a.along>=0.05 && a.along<=0.95)
-        .sort((a,b) => a.dist-b.dist)
-        .slice(0,6);
+        .sort((a,b) => a.dist-b.dist).slice(0,6);
 
-      const altWithMetar: AlternateAD[] = await Promise.all(
-        alts.map(async a => {
-          try {
-            const m = await fetch(`/api/metar?icao=${a.icao}`).then(r=>r.json());
-            const raw = m.metar || null;
-            let cat: string|null = null;
-            if (raw) {
-              const { decodeMetar: dm, getFlightCategory: gfc } = await import('@/lib/weather/metar');
-              cat = gfc(dm(raw));
-            }
-            return { icao:a.icao, lat:a.lat, lng:a.lng,
-              distNM:Math.round(a.dist), posAlongRoute:a.along, metar:raw, cat };
-          } catch {
-            return { icao:a.icao, lat:a.lat, lng:a.lng,
-              distNM:Math.round(a.dist), posAlongRoute:a.along, metar:null, cat:null };
+      const altWithMetar: AlternateAD[] = await Promise.all(alts.map(async a => {
+        try {
+          const m = await fetch(`/api/metar?icao=${a.icao}`).then(r=>r.json());
+          const raw = m.metar || null;
+          let cat: string|null = null;
+          if (raw) {
+            const { decodeMetar: dm, getFlightCategory: gfc } = await import('@/lib/weather/metar');
+            cat = gfc(dm(raw));
           }
-        })
-      );
+          return { icao:a.icao, lat:a.lat, lng:a.lng, distNM:Math.round(a.dist), posAlongRoute:a.along, metar:raw, cat };
+        } catch {
+          return { icao:a.icao, lat:a.lat, lng:a.lng, distNM:Math.round(a.dist), posAlongRoute:a.along, metar:null, cat:null };
+        }
+      }));
 
       setRoute({
         dep: { icao:dep, lat:dLat, lng:dLng, name:dData.name||dep },
@@ -762,6 +322,7 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
         distance: Math.round(distance),
         heading:  Math.round(heading),
         alternates: altWithMetar,
+        firs: estimateFirs(dLat, dLng, aLat, aLng),
       });
     }).catch(e=>setError(e.message)).finally(()=>setLoading(false));
   }, [dep, arr]);
@@ -776,91 +337,58 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
       {loading && <div className={styles.msg}><span className="spin"/> Calculando rota…</div>}
       {error   && <div className={styles.warn}>⚠ {error}</div>}
 
-      {route && (
-        <>
-          {/* ── ERC Control Bar ── */}
-          <ErcControlBar
-            enabled={showErc}
-            level={ercLevel}
-            loading={ercLoading}
-            error={ercError}
-            count={ercRoutes.length}
-            onToggle={setShowErc}
-            onLevelChange={setErcLevel}
-          />
+      {route && (<>
+        {/* ── Mapa ── */}
+        <LeafletMap
+          key={`${dep}-${arr}`}
+          dep={route.dep} arr={route.arr}
+          alternates={route.alternates}
+          distKm={Math.round(route.distance*1.852)}
+          onSelect={icao => setSelected(s => s===icao ? null : icao)}
+          selected={selected}
+          onMapReady={onMapReady}
+        />
 
-          {/* ── Mapa Leaflet ── */}
-          <LeafletMap
-            dep={route.dep} arr={route.arr}
-            alternates={route.alternates}
-            distKm={Math.round(route.distance*1.852)}
-            onSelect={icao => setSelected(s => s===icao ? null : icao)}
-            selected={selected}
-            onMapReady={onMapReady}
-          />
+        {/* ── SIGMET ── */}
+        <SigmetBar firs={route.firs} />
 
-          {/* ── Lista de rotas ERC ── */}
-          {showErc && !ercLoading && (
-            <ErcRouteList
-              routes={ercRoutes}
-              selected={selectedRoute}
-              onSelect={route => {
-                setSelectedRoute(r => r?.id === route.id ? null : route);
-                focusRoute(route);
-              }}
-              onFocus={focusRoute}
-              onClose={() => setSelectedRoute(null)}
-            />
-          )}
-
-          {/* ── Alternativo selecionado ── */}
-          {selectedAlt && (
-            <div className={styles.altDetail}>
-              <div className={styles.altHeader}>
-                <span className={styles.altIcao}>{selectedAlt.icao}</span>
-                {selectedAlt.cat && (
-                  <span className={styles.altCat}
-                    style={{color: CAT_COLOR[selectedAlt.cat]||'var(--txtd)'}}>
-                    {selectedAlt.cat}
-                  </span>
-                )}
-                <span className={styles.altDist}>{selectedAlt.distNM}NM da rota</span>
-                <button className={styles.altClose} onClick={()=>setSelected(null)}>✕</button>
-              </div>
-              {selectedAlt.metar
-                ? <pre className={styles.altMetar}>{selectedAlt.metar}</pre>
-                : <span className={styles.altNoMetar}>METAR não disponível</span>
-              }
+        {/* ── Alternativo selecionado ── */}
+        {selectedAlt && (
+          <div className={styles.altDetail}>
+            <div className={styles.altHeader}>
+              <span className={styles.altIcao}>{selectedAlt.icao}</span>
+              {selectedAlt.cat && <span className={styles.altCat} style={{color:CAT_COLOR[selectedAlt.cat]||'var(--txtd)'}}>{selectedAlt.cat}</span>}
+              <span className={styles.altDist}>{selectedAlt.distNM}NM da rota</span>
+              <button className={styles.altClose} onClick={()=>setSelected(null)}>✕</button>
             </div>
-          )}
-
-          {/* ── Chips de alternativos ── */}
-          {route.alternates.length > 0 && (
-            <div className={styles.altList}>
-              <span className={styles.altListLabel}>ALTERNATIVOS NA ROTA</span>
-              <div className={styles.altChips}>
-                {route.alternates.map(a => (
-                  <button key={a.icao}
-                    className={[styles.altChip, selected===a.icao ? styles.altChipSel:''].join(' ')}
-                    onClick={()=>setSelected(s=>s===a.icao?null:a.icao)}
-                    style={a.cat ? {borderColor:CAT_COLOR[a.cat]+'55'} : undefined}
-                  >
-                    <span className={styles.altChipIcao}>{a.icao}</span>
-                    {a.cat && <span className={styles.altChipCat}
-                      style={{color:CAT_COLOR[a.cat]||'var(--txtd)'}}>{a.cat}</span>}
-                    <span className={styles.altChipDist}>{a.distNM}NM</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className={styles.disclaimer}>
-            * Rumo magnético NOAA IGRF · Alternativos até 80NM da rota ·
-            Consulte carta atualizada para planejamento operacional.
+            {selectedAlt.metar ? <pre className={styles.altMetar}>{selectedAlt.metar}</pre> : <span className={styles.altNoMetar}>METAR não disponível</span>}
           </div>
-        </>
-      )}
+        )}
+
+        {/* ── Chips de alternativos ── */}
+        {route.alternates.length > 0 && (
+          <div className={styles.altList}>
+            <span className={styles.altListLabel}>ALTERNATIVOS NA ROTA</span>
+            <div className={styles.altChips}>
+              {route.alternates.map(a => (
+                <button key={a.icao}
+                  className={[styles.altChip, selected===a.icao ? styles.altChipSel:''].join(' ')}
+                  onClick={()=>setSelected(s=>s===a.icao?null:a.icao)}
+                  style={a.cat ? {borderColor:CAT_COLOR[a.cat]+'55'} : undefined}>
+                  <span className={styles.altChipIcao}>{a.icao}</span>
+                  {a.cat && <span className={styles.altChipCat} style={{color:CAT_COLOR[a.cat]||'var(--txtd)'}}>{a.cat}</span>}
+                  <span className={styles.altChipDist}>{a.distNM}NM</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className={styles.disclaimer}>
+          * Rumo magnético NOAA IGRF · Alternativos até 80NM da rota ·
+          Consulte carta atualizada para planejamento operacional.
+        </div>
+      </>)}
     </Panel>
   );
 }

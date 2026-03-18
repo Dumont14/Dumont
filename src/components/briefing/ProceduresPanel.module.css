@@ -214,3 +214,93 @@
   .cartaNome { font-size: 0.70rem; }
   .cartaItem { flex-wrap: wrap; }
 }
+
+/* ── Viewer iframe ───────────────────────────────────────── */
+.viewer {
+  border: 1px solid var(--brdg);
+  background: rgba(0,0,0,.3);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 8px;
+}
+.viewerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--brd);
+  background: rgba(0,170,255,.06);
+}
+.viewerNome {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--acc2);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viewerActions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.viewerBtn {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--acc2);
+  border: 1px solid var(--acc);
+  background: rgba(0,170,255,.08);
+  padding: 2px 8px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.viewerBtn:hover { background: rgba(0,170,255,.18); }
+.viewerClose {
+  background: none;
+  border: 1px solid var(--brd);
+  color: var(--txtd);
+  width: 20px; height: 20px;
+  cursor: pointer;
+  font-size: 0.62rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.viewerClose:hover { border-color: var(--txtd); color: var(--txt); }
+.viewerFrame {
+  width: 100%;
+  height: 480px;
+  border: none;
+  background: #fff;
+}
+.viewerTabBtn {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--txtd);
+  text-decoration: none;
+  padding: 6px 10px;
+  border-top: 1px solid var(--brd);
+  text-align: center;
+  transition: color .15s, background .15s;
+}
+.viewerTabBtn:hover { color: var(--acc2); background: rgba(0,170,255,.05); }
+
+/* ── Botão VER ───────────────────────────────────────────── */
+.cartaNomeBtn {
+  background: none;
+  border: none;
+  color: var(--txtb);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: left;
+  flex: 1;
+  padding: 0;
+  transition: color .15s;
+}
+.cartaNomeBtn:hover { color: var(--acc2); }
+.cartaBtnView {
+  color: var(--acc2);
+  border-color: var(--acc);
+  background: rgba(0,170,255,.06);
+}
+.cartaBtnView:hover { background: rgba(0,170,255,.15); }
