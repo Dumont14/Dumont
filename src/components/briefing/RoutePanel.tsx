@@ -68,9 +68,9 @@ function crossTrackDist(
 
 async function fetchDeclination(lat: number, lon: number): Promise<number> {
   try {
-    const today = new Date().toISOString().slice(0,10);
+    const year = new Date().getUTCFullYear();
     const res = await fetch(
-      `https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination?lat=${lat}&lon=${lon}&startYear=${today}&resultFormat=json`,
+    `https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination?lat=${lat}&lon=${lon}&startYear=${year}&resultFormat=json`,  
       { signal: AbortSignal.timeout(5000) }
     );
     const data = await res.json();
