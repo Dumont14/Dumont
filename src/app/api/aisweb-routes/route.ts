@@ -1,8 +1,5 @@
-// src/app/api/aisweb-routes/route.ts
-//
-// Proxy server-side para AISWEB area=routesp.
-// Mantém credenciais (AISWEB_USER / AISWEB_PASS) fora do bundle do cliente.
-// Padrão idêntico ao notam/route.ts do projeto.
+// src/app/api/aisweb-cartas/route.ts
+// Proxy para AISWEB area=cartas — lista de cartas aeronáuticas por ICAO
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -10,36 +7,30 @@ const AISWEB_BASE = 'http://aisweb.decea.gov.br/api/';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
+  const icao = searchParams.get('icao')?.toUpperCase() ?? '';
 
-  const adep  = searchParams.get('adep')?.toUpperCase()  ?? '';
-  const ades  = searchParams.get('ades')?.toUpperCase()  ?? '';
-  const level = searchParams.get('level')?.toUpperCase() ?? '';
+  if (!icao || icao.length < 4) {
+    return NextResponse.json({ error: 'ICAO obrigatório' }, { status: 400 });
+  }
 
   const user = process.env.AISWEB_USER;
   const pass = process.env.AISWEB_PASS;
-
   if (!user || !pass) {
-    return NextResponse.json(
-      { error: 'AISWEB credentials not configured (AISWEB_USER / AISWEB_PASS)' },
-      { status: 503 }
-    );
+    return NextResponse.json({ error: 'AISWEB credentials not configured' }, { status: 503 });
   }
 
-  // Montar query para AISWEB
   const query = new URLSearchParams({
     apiKey:  user,
     apiPass: pass,
-    area:    'routesp',
+    area:    'cartas',
+    icaoCode: icao,
   });
-  if (adep)  query.set('adep',  adep);
-  if (ades)  query.set('ades',  ades);
-  if (level) query.set('level', level);
 
   try {
     const res = await fetch(`${AISWEB_BASE}?${query.toString()}`, {
-      headers: { Accept: 'application/json, text/xml, */*' },
-      cache: 'no-store', // sem cache — params variam por par
-      signal: AbortSignal.timeout(10_000),
+      headers: { Accept: 'text/xml, */*' },
+      next: { revalidate: 43200 }, // cache 12h — cartas mudam por emenda (~28 dias)
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!res.ok) {
@@ -49,20 +40,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const contentType = res.headers.get('content-type') ?? '';
     const body = await res.text();
-
-    // Repassar resposta crua (XML ou JSON) — o helper client faz o parse
     return new NextResponse(body, {
       status: 200,
       headers: {
-        'Content-Type': contentType || 'text/xml',
-        'Cache-Control': 's-maxage=1800, stale-while-revalidate=300',
+        'Content-Type': 'text/xml; charset=utf-8',
+        'Cache-Control': 's-maxage=43200, stale-while-revalidate=3600',
       },
     });
   } catch (e: unknown) {
     const msg = (e as Error).message ?? 'Unknown error';
-    console.error('[aisweb-routes] fetch error:', msg);
+    console.error('[aisweb-cartas]', msg);
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }
