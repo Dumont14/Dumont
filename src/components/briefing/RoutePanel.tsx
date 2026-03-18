@@ -221,7 +221,15 @@ function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected, onMapRea
 
       const mid = [(dep.lat+arr.lat)/2, (dep.lng+arr.lng)/2] as [number,number];
       L.marker(mid, {
-        icon: L.divIcon({ html: `<div style="background:rgba(6,10,14,.85);border:1px solid #00aaff55;color:#00d4ff;font-family:'Share Tech Mono',monospace;font-size:11px;padding:2px 8px;white-space:nowrap;letter-spacing:1px;transform:translateX(-50%)">${distKm} km</div>`, className: '', iconAnchor: [0,10] }),
+        icon: (() => {
+          const label = `${distKm} km`;
+          const approxW = Math.round(label.length * 7.5 + 16);
+          return L.divIcon({
+            html: `<div style="background:rgba(6,10,14,.85);border:1px solid #00aaff55;color:#00d4ff;font-family:'Share Tech Mono',monospace;font-size:11px;padding:2px 8px;white-space:nowrap;letter-spacing:1px;">${label}</div>`,
+            className: '',
+            iconAnchor: [Math.round(approxW / 2), 10],
+          });
+        })(),
         interactive: false, zIndexOffset: -1,
       }).addTo(map);
 
