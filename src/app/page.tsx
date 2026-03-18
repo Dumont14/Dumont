@@ -7,7 +7,6 @@ import { Disclaimer }       from '@/components/ui/Disclaimer';
 import { BriefingCard }     from '@/components/briefing/BriefingCard';
 import { RoutePanel }       from '@/components/briefing/RoutePanel';
 import { ProceduresPanel }  from '@/components/briefing/ProceduresPanel';
-import { ProceduresPanel }  from '@/components/briefing/ProceduresPanel';
 import { ActivityFeed }     from '@/components/feed/ActivityFeed';
 import { DumontButton }     from '@/components/dumont/DumontButton';
 import styles from './page.module.css';
