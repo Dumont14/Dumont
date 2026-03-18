@@ -1,0 +1,295 @@
+/* src/components/briefing/RouteIntelligence.module.css */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+/* ── Header da rota ──────────────────────────────────────── */
+.routeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--brd);
+  margin-bottom: 10px;
+}
+
+.routeAd {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.adLabel {
+  font-family: var(--disp);
+  font-size: 0.55rem;
+  letter-spacing: 2px;
+  color: var(--txtd);
+}
+
+.adIcao {
+  font-family: var(--disp);
+  font-size: 1.1rem;
+  letter-spacing: 3px;
+  color: var(--acc2);
+  font-weight: 700;
+}
+
+.routeMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.routeArrow {
+  font-size: 1.2rem;
+  color: var(--acc);
+  opacity: .6;
+}
+
+.routeInfo {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--txtd);
+  letter-spacing: 1px;
+}
+
+/* ── Loading ─────────────────────────────────────────────── */
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 0;
+  justify-content: center;
+}
+
+.loadingDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--acc);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.loadingDot:nth-child(2) { animation-delay: .2s; }
+.loadingDot:nth-child(3) { animation-delay: .4s; }
+
+@keyframes pulse {
+  0%, 100% { opacity: .2; transform: scale(.8); }
+  50%       { opacity: 1;  transform: scale(1.1); }
+}
+
+.loadingText {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--txtd);
+  margin-left: 6px;
+  letter-spacing: 1px;
+}
+
+/* ── Error ───────────────────────────────────────────────── */
+.error {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--amb);
+  padding: 12px 0;
+  text-align: center;
+}
+
+/* ── Status bar ──────────────────────────────────────────── */
+.statusBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid;
+  border-radius: 2px;
+  margin-bottom: 12px;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.statusText {
+  font-family: var(--disp);
+  font-size: 0.75rem;
+  letter-spacing: 1.5px;
+  color: var(--txt);
+  line-height: 1.4;
+}
+
+/* ── Seções ──────────────────────────────────────────────── */
+.section {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--brd);
+  margin-bottom: 2px;
+}
+
+.sectionLabel {
+  font-family: var(--disp);
+  font-size: 0.58rem;
+  letter-spacing: 2px;
+  color: var(--txtd);
+  display: block;
+  margin-bottom: 7px;
+}
+
+/* ── Ameaças ─────────────────────────────────────────────── */
+.threatList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.threatItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.threatIcon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.threatText {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--txtb);
+  line-height: 1.5;
+  padding-left: 8px;
+}
+
+.clear {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: #00e676;
+  padding: 4px 0;
+}
+
+/* ── Janela operacional ──────────────────────────────────── */
+.windowBox {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,.2);
+  border: 1px solid var(--brd);
+}
+
+.windowBest {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.windowBestLabel {
+  font-family: var(--disp);
+  font-size: 0.58rem;
+  letter-spacing: 1.5px;
+  color: var(--txtd);
+}
+
+.windowBestVal {
+  font-family: var(--disp);
+  font-size: 0.82rem;
+  letter-spacing: 1px;
+  color: #00e676;
+}
+
+.windowWarn {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: #ffab00;
+}
+
+.windowDetail {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--txtd);
+  line-height: 1.5;
+}
+
+/* ── Pontos críticos ─────────────────────────────────────── */
+.expandBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+.expandBtn .sectionLabel { margin-bottom: 0; }
+
+.expandIcon {
+  font-size: 0.5rem;
+  color: var(--txtd);
+}
+
+.critList {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.critItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--amb);
+  background: rgba(0,0,0,.15);
+}
+
+.critPoint {
+  font-family: var(--disp);
+  font-size: 0.68rem;
+  letter-spacing: 1px;
+  color: var(--amb);
+}
+
+.critIssue {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--txtd);
+  line-height: 1.4;
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+.footer {
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  color: var(--txtd);
+  opacity: .5;
+  text-align: center;
+  padding-top: 10px;
+  line-height: 1.5;
+}
+
+/* ── Mobile ──────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .adIcao { font-size: 0.95rem; }
+  .statusText { font-size: 0.68rem; }
+  .threatText { font-size: 0.65rem; }
+}
