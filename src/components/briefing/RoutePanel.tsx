@@ -1,7 +1,8 @@
 // src/components/briefing/RoutePanel.tsx
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Panel } from '@/components/ui/Panel';
+import { RouteIntelligence } from './RouteIntelligence';
 import styles from './RoutePanel.module.css';
 
 interface RoutePanelProps { dep: string; arr: string; }
@@ -189,87 +190,6 @@ function SigmetBar({ firs }: { firs: string[] }) {
   );
 }
 
-// ── Mapa Leaflet ──────────────────────────────────────────
-interface LeafletMapProps {
-  dep: AirportCoord; arr: AirportCoord;
-  alternates: AlternateAD[]; distKm: number;
-  onSelect: (icao: string) => void; selected: string | null;
-  onMapReady: (map: any) => void;
-}
-
-function LeafletMap({ dep, arr, alternates, distKm, onSelect, selected, onMapReady }: LeafletMapProps) {
-  const mapRef = useRef<any>(null);
-  const leafRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const load = async () => {
-      if (!document.getElementById('leaflet-css')) {
-        const link = document.createElement('link');
-        link.id = 'leaflet-css'; link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-      }
-      const L = (await import('leaflet' as any)).default || (await import('leaflet' as any));
-      if (!mapRef.current) return;
-      if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; }
-
-      const map = L.map(mapRef.current, { zoomControl: true, attributionControl: false, scrollWheelZoom: true });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, minZoom: 3, opacity: 0.6 }).addTo(map);
-      L.polyline([[dep.lat, dep.lng], [arr.lat, arr.lng]], { color: '#00aaff', weight: 2, dashArray: '8 6', opacity: 0.8 }).addTo(map);
-
-      const mid = [(dep.lat+arr.lat)/2, (dep.lng+arr.lng)/2] as [number,number];
-      L.marker(mid, {
-        icon: L.divIcon({
-          html: `<div style="color:#00d4ff;font-family:'Share Tech Mono',monospace;font-size:11px;white-space:nowrap;letter-spacing:1px;text-shadow:0 0 4px #000,0 0 8px #000;">${distKm} km</div>`,
-          className: '',
-          iconAnchor: [0, 0],
-        }),
-        interactive: false, zIndexOffset: -1,
-      }).addTo(map);
-
-      const mkIcon = (color: string, size: number) => L.divIcon({
-        html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color}22;border:2px solid ${color};box-shadow:0 0 6px ${color}88;"></div>`,
-        className: '', iconSize: [size,size], iconAnchor: [size/2,size/2],
-      });
-
-      markersRef.current = alternates.map(alt => {
-        const col = alt.cat ? (CAT_COLOR[alt.cat] || '#4a6878') : '#4a6878';
-        return L.marker([alt.lat, alt.lng], { icon: mkIcon(col, 14) })
-          .addTo(map)
-          .bindTooltip(`<b style="font-family:monospace;color:${col}">${alt.icao}</b><br/>${alt.cat||'—'} · ${alt.distNM}NM`, { permanent: false, direction: 'top', className: 'dumont-tooltip' })
-          .on('click', () => onSelect(alt.icao));
-      });
-
-      (['DEP','ARR'] as const).forEach((lbl, i) => {
-        const pt = i === 0 ? dep : arr;
-        L.marker([pt.lat, pt.lng], { icon: mkIcon('#00d4ff', 18) })
-          .addTo(map)
-          .bindTooltip(`<b style="font-family:monospace;color:#00d4ff">${pt.icao}</b><br/>${lbl}`, { permanent: true, direction: 'top', className: 'dumont-tooltip' });
-      });
-
-      const bounds = L.latLngBounds([dep.lat, dep.lng], [arr.lat, arr.lng]);
-      alternates.forEach(a => bounds.extend([a.lat, a.lng]));
-      map.fitBounds(bounds, { padding: [40, 40] });
-      leafRef.current = map;
-      if (typeof window !== 'undefined') (window as any).L = L;
-      onMapReady(map);
-    };
-    load().catch(console.warn);
-    return () => { if (leafRef.current) { leafRef.current.remove(); leafRef.current = null; } };
-  }, [dep.icao, arr.icao, distKm]); // eslint-disable-line
-
-  useEffect(() => { if (!leafRef.current) return; }, [selected]);
-
-  return (
-    <>
-      <style>{`.dumont-tooltip{background:rgba(6,10,14,.92)!important;border:1px solid #162535!important;color:#b8cdd8!important;font-family:'Share Tech Mono',monospace!important;font-size:11px!important;border-radius:2px!important;box-shadow:0 2px 8px rgba(0,0,0,.5)!important;padding:4px 8px!important}.dumont-tooltip::before{display:none!important}.leaflet-control-zoom{border:1px solid #162535!important;background:rgba(6,10,14,.9)!important}.leaflet-control-zoom a{background:transparent!important;color:#b8cdd8!important;border-bottom:1px solid #162535!important}.leaflet-control-zoom a:hover{background:rgba(0,170,255,.15)!important}`}</style>
-      <div ref={mapRef} className={styles.leafletMap} />
-    </>
-  );
-}
-
 // ── Componente principal ──────────────────────────────────
 export function RoutePanel({ dep, arr }: RoutePanelProps) {
   const [route,    setRoute]    = useState<RouteData | null>(null);
@@ -277,8 +197,7 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
   const [error,    setError]    = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  const leafRef = useRef<any>(null);
-  const onMapReady = useCallback((map: any) => { leafRef.current = map; }, []);
+
 
   useEffect(() => {
     if (!dep || !arr) return;
@@ -342,19 +261,14 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
       {error   && <div className={styles.warn}>⚠ {error}</div>}
 
       {route && (<>
-        {/* ── Mapa ── */}
-        <LeafletMap
-          key={`${dep}-${arr}`}
-          dep={route.dep} arr={route.arr}
-          alternates={route.alternates}
-          distKm={Math.round(route.distance*1.852)}
-          onSelect={icao => setSelected(s => s===icao ? null : icao)}
-          selected={selected}
-          onMapReady={onMapReady}
+        {/* ── Rota Operacional Inteligente ── */}
+        <RouteIntelligence
+          dep={dep}
+          arr={arr}
+          distance={route.distance}
+          heading={route.heading}
         />
 
-        {/* ── SIGMET ── */}
-        <SigmetBar firs={route.firs} />
 
         {/* ── Alternativo selecionado ── */}
         {selectedAlt && (
