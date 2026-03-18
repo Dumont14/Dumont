@@ -40,10 +40,11 @@ export async function fetchCartas(icao: string, signal?: AbortSignal): Promise<C
   if (!res.ok) throw new Error(`Cartas ${icao}: ${res.status} ${res.statusText}`);
 
   const text = await res.text();
-  return parseCartas(text);
+  // Filtrar pelo ICAO no cliente — a API pode ignorar o parâmetro e retornar tudo
+  return parseCartas(text, icao.toUpperCase());
 }
 
-function parseCartas(xml: string): CartasByTipo {
+function parseCartas(xml: string, filterIcao?: string): CartasByTipo {
   if (!xml || !xml.trim().startsWith('<')) return {};
 
   const doc = new DOMParser().parseFromString(xml, 'text/xml');
@@ -73,6 +74,9 @@ function parseCartas(xml: string): CartasByTipo {
     };
 
     if (!carta.nome || !carta.link) return;
+
+    // Filtrar pelo ICAO solicitado (API pode retornar todas as cartas do Brasil)
+    if (filterIcao && carta.icao && carta.icao.toUpperCase() !== filterIcao) return;
 
     if (!result[tipoKey]) result[tipoKey] = [];
     result[tipoKey].push(carta);
