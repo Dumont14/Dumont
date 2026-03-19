@@ -255,7 +255,15 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
   return (
     <Panel
       title="ROTA"
-      subtitle={route ? `${dep} → ${arr}  ·  ${fmt3(route.heading)} · ${route.distance} NM` : `${dep} → ${arr}`}
+      subtitle={route
+        ? <span style={{display:'flex',alignItems:'baseline',gap:'6px',fontFamily:'var(--mono)',fontSize:'0.72rem',letterSpacing:'1px'}}>
+            <span style={{fontFamily:'var(--disp)',fontSize:'0.85rem',letterSpacing:'2px',color:'var(--acc2)',fontWeight:700}}>{dep}</span>
+            <span style={{color:'var(--txtd)'}}>→</span>
+            <span style={{color:'var(--txtd)'}}>{fmt3(route.heading)} · {route.distance} NM</span>
+            <span style={{color:'var(--txtd)'}}>→</span>
+            <span style={{fontFamily:'var(--disp)',fontSize:'0.85rem',letterSpacing:'2px',color:'var(--acc2)',fontWeight:700}}>{arr}</span>
+          </span>
+        : `${dep} → ${arr}`}
       status={loading?'loading':error?'warn':'ok'}>
       {loading && <div className={styles.msg}><span className="spin"/> Calculando rota…</div>}
       {error   && <div className={styles.warn}>⚠ {error}</div>}
