@@ -3,7 +3,7 @@ import styles from './Panel.module.css';
 
 interface PanelProps {
   title: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   status?: 'ok' | 'warn' | 'crit' | 'loading' | 'empty';
   badge?: React.ReactNode;
   actions?: React.ReactNode;
