@@ -56,12 +56,16 @@ export function RouteIntelligence({ dep, arr }: RouteIntelligenceProps) {
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    if (!dep || !arr) return;
+    if (!dep || !arr || dep.length < 3 || arr.length < 3) return;
     setLoading(true); setError(null); setData(null);
     const ctrl = new AbortController();
     fetch(`/api/route-intelligence?dep=${dep}&arr=${arr}`, { signal: ctrl.signal })
       .then(r => r.json())
-      .then(d => { if (d.error) throw new Error(d.error); setData(d); })
+      .then(d => {
+        console.debug('[RouteIntelligence] response:', JSON.stringify(d).slice(0, 200));
+        if (d.error) throw new Error(d.error);
+        setData(d);
+      })
       .catch(e => { if (e.name !== 'AbortError') setError(e.message); })
       .finally(() => setLoading(false));
     return () => ctrl.abort();
