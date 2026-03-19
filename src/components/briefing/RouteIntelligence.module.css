@@ -7,68 +7,16 @@
   padding: 0;
 }
 
-/* ── Header da rota ──────────────────────────────────────── */
-.routeHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 0 12px;
-  border-bottom: 1px solid var(--brd);
-  margin-bottom: 10px;
-}
-
-.routeAd {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.adLabel {
-  font-family: var(--disp);
-  font-size: 0.55rem;
-  letter-spacing: 2px;
-  color: var(--txtd);
-}
-
-.adIcao {
-  font-family: var(--disp);
-  font-size: 1.1rem;
-  letter-spacing: 3px;
-  color: var(--acc2);
-  font-weight: 700;
-}
-
-.routeMeta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-}
-
-.routeArrow {
-  font-size: 1.2rem;
-  color: var(--acc);
-  opacity: .6;
-}
-
-.routeInfo {
-  font-family: var(--mono);
-  font-size: 0.65rem;
-  color: var(--txtd);
-  letter-spacing: 1px;
-}
-
 /* ── Loading ─────────────────────────────────────────────── */
 .loading {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 20px 0;
+  padding: 24px 0;
   justify-content: center;
 }
 
-.loadingDot {
+.dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -76,8 +24,8 @@
   animation: pulse 1.2s ease-in-out infinite;
 }
 
-.loadingDot:nth-child(2) { animation-delay: .2s; }
-.loadingDot:nth-child(3) { animation-delay: .4s; }
+.dot:nth-child(2) { animation-delay: .2s; }
+.dot:nth-child(3) { animation-delay: .4s; }
 
 @keyframes pulse {
   0%, 100% { opacity: .2; transform: scale(.8); }
@@ -101,31 +49,91 @@
   text-align: center;
 }
 
-/* ── Status bar ──────────────────────────────────────────── */
-.statusBar {
+/* ── 1. Status — linha grande ────────────────────────────── */
+.statusBlock {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   border: 1px solid;
-  border-radius: 2px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .statusDot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: 0 0 6px currentColor;
+  box-shadow: 0 0 8px currentColor;
 }
 
 .statusText {
   font-family: var(--disp);
-  font-size: 0.75rem;
+  font-size: 0.82rem;
   letter-spacing: 1.5px;
   color: var(--txt);
   line-height: 1.4;
+}
+
+/* ── 2. Risk score — destaque visual ─────────────────────── */
+.riskBlock {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  background: rgba(0,0,0,.25);
+  border: 1px solid var(--brd);
+  margin-bottom: 12px;
+}
+
+.riskLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.riskLabel {
+  font-family: var(--disp);
+  font-size: 0.55rem;
+  letter-spacing: 2px;
+  color: var(--txtd);
+}
+
+.riskValue {
+  font-family: var(--disp);
+  font-size: 1rem;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+.riskBarWrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.riskBar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.riskFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width .6s ease;
+}
+
+.riskScore {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--txtd);
+  flex-shrink: 0;
 }
 
 /* ── Seções ──────────────────────────────────────────────── */
@@ -141,23 +149,38 @@
   letter-spacing: 2px;
   color: var(--txtd);
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 8px;
 }
 
-/* ── Ameaças ─────────────────────────────────────────────── */
+.clear {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: #00e676;
+  padding: 4px 0;
+}
+
+/* ── 3. Ameaças ──────────────────────────────────────────── */
 .threatList {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .threatItem {
+  padding: 8px 10px 8px 12px;
+  background: rgba(0,0,0,.2);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.threatTop {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
 }
 
 .threatIcon {
@@ -171,60 +194,77 @@
   font-size: 0.72rem;
   color: var(--txtb);
   line-height: 1.5;
-  padding-left: 8px;
 }
 
-.clear {
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  color: #00e676;
-  padding: 4px 0;
-}
-
-/* ── Janela operacional ──────────────────────────────────── */
-.windowBox {
+.threatImpact {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 8px 12px;
-  background: rgba(0,0,0,.2);
-  border: 1px solid var(--brd);
+  align-items: baseline;
+  gap: 8px;
+  padding-left: 28px;
 }
 
-.windowBest {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.windowBestLabel {
+.impactLabel {
   font-family: var(--disp);
-  font-size: 0.58rem;
+  font-size: 0.55rem;
   letter-spacing: 1.5px;
   color: var(--txtd);
+  flex-shrink: 0;
 }
 
-.windowBestVal {
-  font-family: var(--disp);
-  font-size: 0.82rem;
-  letter-spacing: 1px;
-  color: #00e676;
-}
-
-.windowWarn {
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  color: #ffab00;
-}
-
-.windowDetail {
+.impactText {
   font-family: var(--mono);
   font-size: 0.65rem;
   color: var(--txtd);
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
-/* ── Pontos críticos ─────────────────────────────────────── */
+/* ── 4. Janela operacional ───────────────────────────────── */
+.windowGrid {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.windowItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,.2);
+  border: 1px solid var(--brd);
+  flex: 1;
+  min-width: 140px;
+}
+
+.windowDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.windowItem > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.windowItemLabel {
+  font-family: var(--disp);
+  font-size: 0.55rem;
+  letter-spacing: 2px;
+  color: var(--txtd);
+}
+
+.windowItemVal {
+  font-family: var(--disp);
+  font-size: 0.80rem;
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+
+/* ── 5. Pontos críticos ──────────────────────────────────── */
 .expandBtn {
   display: flex;
   align-items: center;
@@ -234,12 +274,9 @@
   border: none;
   cursor: pointer;
   padding: 0;
-  margin-bottom: 0;
 }
 
-.expandBtn .sectionLabel { margin-bottom: 0; }
-
-.expandIcon {
+.chevron {
   font-size: 0.5rem;
   color: var(--txtd);
 }
@@ -250,7 +287,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .critItem {
@@ -271,7 +308,7 @@
 
 .critIssue {
   font-family: var(--mono);
-  font-size: 0.65rem;
+  font-size: 0.63rem;
   color: var(--txtd);
   line-height: 1.4;
 }
@@ -289,7 +326,8 @@
 
 /* ── Mobile ──────────────────────────────────────────────── */
 @media (max-width: 600px) {
-  .adIcao { font-size: 0.95rem; }
-  .statusText { font-size: 0.68rem; }
-  .threatText { font-size: 0.65rem; }
+  .riskValue    { font-size: 0.85rem; }
+  .statusText   { font-size: 0.68rem; }
+  .threatText   { font-size: 0.65rem; }
+  .windowGrid   { flex-direction: column; }
 }
