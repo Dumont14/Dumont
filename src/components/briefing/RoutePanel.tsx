@@ -114,6 +114,15 @@ const KNOWN_AIRPORTS = [
   {icao:'SBSG',lat:-5.768,lng:-35.376},{icao:'SBJP',lat:-7.145,lng:-34.950},
   {icao:'SBMK',lat:-16.706,lng:-43.819},{icao:'SBTB',lat:-1.489,lng:-48.742},
   {icao:'SBJF',lat:-21.792,lng:-43.387},{icao:'SBEG',lat:-3.038,lng:-60.050},
+  // Regionais
+  {icao:'SBCA',lat:-25.000,lng:-53.501},{icao:'SBDO',lat:-22.200,lng:-54.925},
+  {icao:'SBCX',lat:-29.197,lng:-51.188},{icao:'SBPK',lat:-31.717,lng:-52.328},
+  {icao:'SBNM',lat:-27.674,lng:-53.697},{icao:'SBCH',lat:-27.135,lng:-52.656},
+  {icao:'SBAR',lat:-10.984,lng:-37.071},{icao:'SBIL',lat:-14.815,lng:-39.034},
+  {icao:'SBVC',lat:-14.908,lng:-40.917},{icao:'SBPS',lat:-16.438,lng:-39.081},
+  {icao:'SBMA',lat:-5.369,lng:-49.138},{icao:'SBSM',lat:-29.711,lng:-53.689},
+  {icao:'SBAU',lat:-21.149,lng:-50.426},{icao:'SBDB',lat:-15.990,lng:-52.256},
+  {icao:'SBCO',lat:-29.943,lng:-51.144},{icao:'SBBE',lat:-1.379,lng:-48.476},
 ];
 
 const CAT_COLOR: Record<string,string> = {
@@ -207,11 +216,21 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
       fetch(`/api/airport?icao=${dep}`).then(r => r.json()),
       fetch(`/api/airport?icao=${arr}`).then(r => r.json()),
     ]).then(async ([dData, aData]) => {
-      if (dData.error) throw new Error(`DEP: ${dData.error}`);
-      if (aData.error) throw new Error(`ARR: ${aData.error}`);
-      const dLat=parseFloat(dData.lat), dLng=parseFloat(dData.lng);
-      const aLat=parseFloat(aData.lat), aLng=parseFloat(aData.lng);
-      if (isNaN(dLat)||isNaN(aLat)) throw new Error('Coordenadas indisponíveis');
+      // Fallback de coords: usar KNOWN_AIRPORTS se a API não retornar coordenadas válidas
+      const knownDep = KNOWN_AIRPORTS.find(a => a.icao === dep);
+      const knownArr = KNOWN_AIRPORTS.find(a => a.icao === arr);
+
+      let dLat = parseFloat(dData.lat), dLng = parseFloat(dData.lng);
+      let aLat = parseFloat(aData.lat), aLng = parseFloat(aData.lng);
+
+      if (isNaN(dLat) && knownDep) { dLat = knownDep.lat; dLng = knownDep.lng; }
+      if (isNaN(aLat) && knownArr) { aLat = knownArr.lat; aLng = knownArr.lng; }
+
+      if (isNaN(dLat) || isNaN(aLat)) throw new Error('Coordenadas indisponíveis');
+
+      // Nome do aeródromo: API ou fallback para o ICAO
+      if (!dData.name && knownDep) dData.name = dep;
+      if (!aData.name && knownArr) aData.name = arr;
 
       const distance = distNM(dLat,dLng,aLat,aLng);
       const bearing  = trueBearing(dLat,dLng,aLat,aLng);
