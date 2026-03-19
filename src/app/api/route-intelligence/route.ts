@@ -3,8 +3,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const REDEMET_KEY  = process.env.REDEMET_KEY ?? '';
-const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY ?? '';
+const REDEMET_KEY  = process.env.REDEMET_KEY ?? process.env.REDEMET_API_KEY ?? '';
+const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY ?? process.env.ANTHROPIC_API_KEY ?? '';
 
 // ── Helpers REDEMET ───────────────────────────────────────
 function redemetWindow(hoursBack = 6) {
@@ -66,40 +66,48 @@ function buildPrompt(dep: string, arr: string, depTaf: string, arrTaf: string, d
         `FIR ${s.id_fir} | ${s.fenomeno} | Válido ${s.validade_inicial.slice(11,16)}–${s.validade_final.slice(11,16)}Z | ${s.mens}`
       ).join('\n');
 
-  return `Você é um despachante operacional experiente da aviação brasileira. Analise os dados abaixo e produza um briefing operacional conciso para a rota ${dep} → ${arr}.
+  return `Você é um despachante operacional sênior da aviação brasileira — direto, preciso, sem enrolação. Analise os dados e produza um briefing para a rota ${dep} → ${arr}.
 
-DADOS:
+DADOS DISPONÍVEIS:
 METAR ${dep}: ${depMetar || 'não disponível'}
 TAF ${dep}: ${depTaf || 'não disponível'}
-METAR ${arr}: ${arrMetar || 'não disponível'}  
+METAR ${arr}: ${arrMetar || 'não disponível'}
 TAF ${arr}: ${arrTaf || 'não disponível'}
 SIGMETs ativos Brasil:
 ${sigmetText}
 
 Responda APENAS com JSON válido, sem markdown, sem texto fora do JSON:
 {
-  "status": "string de 1 linha — ex: ROTA OPERACIONAL | condições VMC nos dois AD",
+  "status": "frase curta e direta — ex: ROTA OPERACIONAL COM RESTRIÇÕES | CBs no setor norte",
   "statusLevel": "ok" | "caution" | "warning" | "critical",
+  "riskScore": número de 0 a 100,
+  "riskLabel": "BAIXO" | "MODERADO" | "ALTO" | "CRÍTICO",
   "threats": [
-    { "icon": "emoji", "text": "descrição da ameaça", "severity": "low"|"medium"|"high" }
+    {
+      "icon": "emoji representativo do fenômeno",
+      "text": "linguagem operacional direta — ex: Células convectivas extensas (até FL450) — desvios prováveis",
+      "impact": "SO WHAT — ex: Desvios de rota + 20-40min extra de combustível",
+      "severity": "low" | "medium" | "high"
+    }
   ],
   "window": {
-    "best": "ex: Agora até +3h",
-    "warning": "ex: Piora prevista após 18:00Z",
-    "detail": "1-2 frases explicando a janela"
+    "best": "ex: Agora → +3h",
+    "deterioration": "ex: Após 05Z — nevoeiro previsto SBPA",
+    "hasDetermination": true or false
   },
   "criticalPoints": [
-    { "point": "nome do ponto/FIR/trecho", "issue": "descrição do problema" }
+    { "point": "trecho ou FIR", "issue": "problema objetivo — sem exageros" }
   ]
 }
 
-Regras:
-- Seja direto e objetivo como um despachante real
-- Não invente dados que não estão nas fontes
-- Se não houver ameaças, threats deve ser array vazio
-- statusLevel: ok=tudo normal, caution=atenção recomendada, warning=cuidado significativo, critical=não recomendado
+REGRAS DE OURO:
+- Nunca invente dados que não estão nas fontes — se não tem info, diz que não tem
+- Linguagem de cockpit: curta, objetiva, sem jargão desnecessário
+- riskScore: 0-20=baixo, 21-50=moderado, 51-75=alto, 76-100=crítico
+- Cada threat DEVE ter um impact (o "então o quê?" para o piloto)
+- statusLevel: ok=normal, caution=atenção, warning=cuidado real, critical=não recomendado sem mitigação
 - Responda em português brasileiro
-- Máximo 2 criticalPoints se não houver problemas reais`;
+- window.hasDetermination: true se há piora prevista real nas fontes, false se céu limpo`;
 }
 
 // ── Handler ───────────────────────────────────────────────
