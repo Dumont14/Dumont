@@ -103,11 +103,24 @@ Responda APENAS com JSON válido, sem markdown, sem texto fora do JSON:
 REGRAS DE OURO:
 - Nunca invente dados que não estão nas fontes — se não tem info, diz que não tem
 - Linguagem de cockpit: curta, objetiva, sem jargão desnecessário
+- SEMPRE use horário UTC em todos os campos — nunca converta para horário local
 - riskScore: 0-20=baixo, 21-50=moderado, 51-75=alto, 76-100=crítico
 - Cada threat DEVE ter um impact (o "então o quê?" para o piloto)
 - statusLevel: ok=normal, caution=atenção, warning=cuidado real, critical=não recomendado sem mitigação
 - Responda em português brasileiro
-- window.hasDetermination: true se há piora prevista real nas fontes, false se céu limpo`;
+- window.hasDetermination: true se há piora prevista real nas fontes, false se céu limpo
+
+REGRAS DE IMPACTO — AVIAÇÃO REAL:
+- VMC (vis≥5000m e teto≥1500ft) NÃO é ameaça — NUNCA cite VMC como problema ou restrição
+- IFR e LIFR afetam principalmente a CHEGADA (mínimos de aproximação), não a decolagem IFR
+- Teto baixo no ARR → impacto correto: "Verificar mínimos IAC — possível necessidade de alternado"
+- Teto baixo no DEP → impacto correto: "Possível demora na liberação IFR pelo ACC/APP"
+- TS/CB → impacto correto: "Desvios de rota prováveis — reserva extra de combustível recomendada"
+- SIGMET ativo → impacto correto: "Consultar NOTAMs e solicitar atualização ao despacho"
+- Vento forte → impacto correto: "Verificar componente de través e limitações de performance"
+- Baixa visibilidade DEP → impacto correto: "Verificar mínimos de decolagem do operador"
+- NUNCA escreva que condições VMC causam atrasos, restrições ou qualquer problema
+- NUNCA escreva que IFR impede ou dificulta a decolagem de aeronave IFR`;
 }
 
 // ── Handler ───────────────────────────────────────────────
