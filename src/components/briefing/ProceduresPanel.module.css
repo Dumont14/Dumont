@@ -1,443 +1,124 @@
 /* src/components/briefing/ProceduresPanel.module.css */
-/* Segue padrão de RoutePanel.module.css — usa variáveis do design system */
 
-.msg  { font-family:var(--mono); font-size:0.85rem; display:flex; align-items:center; gap:8px; color:var(--txtd); padding:4px 0; }
-.warn { font-family:var(--mono); font-size:0.85rem; color:var(--amb); padding:4px 0; }
-.empty { font-family:var(--mono); font-size:0.75rem; color:var(--txtd); padding:8px 0; text-align:center; }
+/* ── Base ────────────────────────────────────────────────── */
+.loading { display:flex; align-items:center; gap:6px; padding:20px 0; justify-content:center; }
+.dot { width:6px; height:6px; border-radius:50%; background:var(--acc); animation:pulse 1.2s ease-in-out infinite; }
+.dot:nth-child(2) { animation-delay:.2s; }
+.dot:nth-child(3) { animation-delay:.4s; }
+@keyframes pulse { 0%,100%{opacity:.2;transform:scale(.8)} 50%{opacity:1;transform:scale(1.1)} }
+.loadingText { font-family:var(--mono); font-size:0.72rem; color:var(--txtd); margin-left:6px; }
+.error { font-family:var(--mono); font-size:0.75rem; color:var(--amb); padding:10px 0; }
+.msg   { font-family:var(--mono); font-size:0.85rem; color:var(--txtd); padding:4px 0; }
+.warn  { font-family:var(--mono); font-size:0.85rem; color:var(--amb); padding:4px 0; }
 
-/* ── Seletor DEP / ARR ───────────────────────────────────── */
-.adSelector {
-  display: flex;
-  gap: 0;
-  border: 1px solid var(--brd);
-  margin-bottom: 10px;
-  width: fit-content;
+/* ── DEP / ARR selector ──────────────────────────────────── */
+.adSelector { display:flex; border:1px solid var(--brd); width:fit-content; margin-bottom:12px; }
+.adTab, .adTabActive { display:flex; align-items:center; gap:7px; padding:5px 14px; background:none; border:none; cursor:pointer; transition:background .15s; }
+.adTab { color:var(--txtd); }
+.adTab:hover { background:rgba(0,170,255,.06); color:var(--txtb); }
+.adTabActive { background:rgba(0,170,255,.12); color:var(--acc2); }
+.adTabLabel { font-family:var(--disp); font-size:0.58rem; letter-spacing:1.5px; color:inherit; }
+.adTabIcao  { font-family:var(--disp); font-size:0.82rem; letter-spacing:2px; color:inherit; }
+.adTabSpin  { display:inline-block; width:8px; height:8px; border:1.5px solid var(--acc); border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── Vento ───────────────────────────────────────────────── */
+.windBar { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--brd); margin-bottom:10px; }
+.windLabel { font-family:var(--disp); font-size:0.58rem; letter-spacing:2px; color:var(--txtd); }
+.windVal { font-family:var(--mono); font-size:0.72rem; color:var(--txtb); }
+
+/* ── Recomendação ────────────────────────────────────────── */
+.recBox {
+  border: 1px solid rgba(255,193,7,.35);
+  background: rgba(255,193,7,.05);
+  padding: 10px 12px;
+  margin-bottom: 12px;
 }
+.recHeader { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.recStar   { font-size:0.9rem; }
+.recLabel  { font-family:var(--disp); font-size:0.58rem; letter-spacing:2px; color:var(--txtd); flex:1; }
+.recTag    { font-family:var(--mono); font-size:0.62rem; color:var(--txtb); }
+.recNome   { font-family:var(--disp); font-size:0.92rem; letter-spacing:1.5px; color:var(--acc2); margin-bottom:6px; font-weight:700; }
+.recReasons { list-style:none; margin:0 0 8px; padding:0; display:flex; flex-direction:column; gap:2px; }
+.recReason  { font-family:var(--mono); font-size:0.65rem; color:#00e676; }
 
-.adTab,
-.adTabActive {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 14px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: background .15s;
-}
+.briefBtn { background:none; border:1px solid var(--brd); color:var(--txtd); font-family:var(--mono); font-size:0.62rem; padding:3px 10px; cursor:pointer; transition:color .15s, border-color .15s; }
+.briefBtn:hover { color:var(--acc2); border-color:var(--acc); }
+.briefText { font-family:var(--mono); font-size:0.68rem; color:var(--txtb); line-height:1.7; margin-top:8px; padding:8px 10px; background:rgba(0,0,0,.2); border-left:2px solid var(--acc); white-space:pre-wrap; }
 
-.adTab { color: var(--txtd); }
-.adTab:hover { background: rgba(0,170,255,.06); color: var(--txtb); }
-.adTabActive { background: rgba(0,170,255,.12); color: var(--acc2); }
+/* ── Grupos por RWY ──────────────────────────────────────── */
+.rwyGroup { margin-bottom:10px; }
+.rwyHeader { display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px solid var(--brd); margin-bottom:6px; }
+.rwyLabel  { font-family:var(--disp); font-size:0.68rem; letter-spacing:2px; color:var(--txtb); }
+.rwyActive { font-family:var(--disp); font-size:0.55rem; letter-spacing:1.5px; color:#00e676; background:rgba(0,230,118,.1); border:1px solid rgba(0,230,118,.3); padding:1px 6px; }
 
-.adTabLabel {
-  font-family: var(--disp);
-  font-size: 0.58rem;
-  letter-spacing: 1.5px;
-  color: inherit;
-}
+.procList { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; }
+.procItem { padding:6px 10px; background:rgba(0,0,0,.15); border:1px solid transparent; transition:background .15s, border-color .15s; }
+.procItem:hover { background:rgba(0,170,255,.05); border-color:var(--brdg); }
+.procItemRec { border-color:rgba(255,193,7,.3) !important; background:rgba(255,193,7,.04) !important; }
+.procTop { display:flex; align-items:center; gap:8px; margin-bottom:3px; }
+.procStar { font-size:0.75rem; }
+.procNome { font-family:var(--mono); font-size:0.75rem; color:var(--txtb); flex:1; }
+.procTagLabel { font-family:var(--mono); font-size:0.60rem; color:var(--txtd); flex-shrink:0; }
+.procNote { font-family:var(--mono); font-size:0.62rem; color:var(--txtd); padding-left:20px; margin-bottom:4px; line-height:1.4; }
+.procActions { display:flex; gap:4px; padding-left:20px; }
 
-.adTabIcao {
-  font-family: var(--disp);
-  font-size: 0.82rem;
-  letter-spacing: 2px;
-  color: inherit;
-}
+/* ── Botões de carta ─────────────────────────────────────── */
+.cartaBtn { font-family:var(--mono); font-size:0.62rem; color:var(--txtd); background:none; border:1px solid var(--brd); padding:2px 7px; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; transition:color .15s, border-color .15s; white-space:nowrap; }
+.cartaBtn:hover { color:var(--acc2); border-color:var(--acc); }
+.cartaBtnView { color:var(--acc2); border-color:var(--acc); background:rgba(0,170,255,.06); }
+.cartaBtnView:hover { background:rgba(0,170,255,.15); }
+.cartaBtnPrimary { color:var(--acc2); border-color:var(--acc); background:rgba(0,170,255,.08); }
+.cartaBtnPrimary:hover { background:rgba(0,170,255,.18); }
+.cartaNomeBtn { background:none; border:none; color:var(--txtb); font-family:var(--mono); font-size:0.78rem; cursor:pointer; text-align:left; flex:1; padding:0; transition:color .15s; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cartaNomeBtn:hover { color:var(--acc2); }
 
-.adTabSpin {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--acc);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin .7s linear infinite;
-}
+/* ── Todas as cartas ─────────────────────────────────────── */
+.allCartasWrap { border-top:1px solid var(--brd); margin-top:10px; padding-top:6px; }
+.allCartasToggle { display:flex; align-items:center; justify-content:space-between; width:100%; background:none; border:none; cursor:pointer; padding:4px 0; }
+.allCartasLabel { font-family:var(--disp); font-size:0.58rem; letter-spacing:2px; color:var(--txtd); }
+.chevron { font-size:0.5rem; color:var(--txtd); }
+.allCartasBody { margin-top:8px; display:flex; flex-direction:column; gap:10px; }
+.allCartasTipo { }
+.allCartasTipoLabel { font-family:var(--disp); font-size:0.60rem; letter-spacing:2px; color:var(--txtd); display:block; margin-bottom:4px; }
+.allCartasList { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:3px; max-height:240px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--brd) transparent; }
+.allCartasItem { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 10px; background:rgba(0,0,0,.2); border:1px solid transparent; transition:background .15s; }
+.allCartasItem:hover { background:rgba(0,170,255,.05); border-color:var(--brdg); }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── Seletor de tipo ─────────────────────────────────────── */
-.tipoSelector {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-  border-bottom: 1px solid var(--brd);
-  padding-bottom: 8px;
-}
-
-.tipoTab,
-.tipoTabActive {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 10px;
-  font-family: var(--disp);
-  font-size: 0.68rem;
-  letter-spacing: 1px;
-  border: 1px solid var(--brd);
-  background: none;
-  cursor: pointer;
-  transition: all .15s;
-}
-
-.tipoTab { color: var(--txtd); }
-.tipoTab:hover:not(:disabled) { color: var(--txtb); border-color: var(--acc); }
-.tipoTab:disabled { opacity: .3; cursor: not-allowed; }
-.tipoTabActive { color: var(--acc2); border-color: var(--acc); background: rgba(0,170,255,.1); }
-
-.tipoCount {
-  font-family: var(--mono);
-  font-size: 0.60rem;
-  color: var(--txtd);
-  background: rgba(0,0,0,.2);
-  padding: 0 4px;
-  border-radius: 2px;
-}
-
-.tipoTabActive .tipoCount { color: var(--acc2); }
-
-/* ── Label do tipo ───────────────────────────────────────── */
-.tipoLabel {
-  font-family: var(--disp);
-  font-size: 0.62rem;
-  letter-spacing: 1.5px;
-  color: var(--txtd);
-  margin-bottom: 6px;
-}
-
-/* ── Lista de cartas ─────────────────────────────────────── */
-.cartaList {
-  list-style: none;
-  margin: 0 0 8px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  max-height: 320px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--brd) transparent;
-}
-
-.cartaItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 10px;
-  background: rgba(0,0,0,.2);
-  border: 1px solid transparent;
-  transition: background .15s, border-color .15s;
-}
-
-.cartaItem:hover {
-  background: rgba(0,170,255,.05);
-  border-color: var(--brdg);
-}
-
-.cartaMain {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-}
-
-.cartaNome {
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  color: var(--txtb);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cartaIcp {
-  font-family: var(--disp);
-  font-size: 0.60rem;
-  letter-spacing: 1px;
-  color: var(--txtd);
-  flex-shrink: 0;
-  border: 1px solid var(--brd);
-  padding: 0 5px;
-}
-
-/* ── Botões de ação ──────────────────────────────────────── */
-.cartaActions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.cartaBtn {
-  font-family: var(--mono);
-  font-size: 0.62rem;
-  color: var(--txtd);
-  background: none;
-  border: 1px solid var(--brd);
-  padding: 2px 7px;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  transition: color .15s, border-color .15s;
-  white-space: nowrap;
-}
-
-.cartaBtn:hover {
-  color: var(--acc2);
-  border-color: var(--acc);
-}
-
-.cartaBtnPrimary {
-  color: var(--acc2);
-  border-color: var(--acc);
-  background: rgba(0,170,255,.08);
-}
-
-.cartaBtnPrimary:hover {
-  background: rgba(0,170,255,.18);
-}
-
-/* ── Rodapé emenda ───────────────────────────────────────── */
-.amdt {
-  font-family: var(--mono);
-  font-size: 0.60rem;
-  color: var(--txtd);
-  opacity: .7;
-  text-align: right;
-}
+/* ── Modal ───────────────────────────────────────────────── */
+.modalOverlay { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(2px); }
+.modal { background:var(--bg,#060a0e); border:1px solid var(--brdg); display:flex; flex-direction:column; width:100%; max-width:900px; max-height:90vh; box-shadow:0 8px 40px rgba(0,0,0,.8); }
+.modalHeader { display:flex; align-items:center; gap:12px; padding:8px 12px; border-bottom:1px solid var(--brd); background:rgba(0,170,255,.06); flex-shrink:0; }
+.modalNome { font-family:var(--mono); font-size:0.80rem; color:var(--acc2); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.modalActions { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+.modalBtn { font-family:var(--mono); font-size:0.65rem; color:var(--acc2); border:1px solid var(--acc); background:rgba(0,170,255,.08); padding:3px 10px; text-decoration:none; cursor:pointer; display:inline-flex; align-items:center; transition:background .15s; white-space:nowrap; }
+.modalBtn:hover { background:rgba(0,170,255,.2); }
+.modalClose { background:none; border:1px solid var(--brd); color:var(--txtd); width:24px; height:24px; cursor:pointer; font-size:0.65rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.modalClose:hover { border-color:var(--txtd); color:var(--txt); }
+.modalObject { width:100%; height:100%; min-height:60vh; display:block; }
+.modalFallback { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; height:60vh; color:var(--txtd); font-family:var(--mono); font-size:0.80rem; }
 
 /* ── Mobile ──────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  .cartaNome { font-size: 0.70rem; }
-  .cartaItem { flex-wrap: wrap; }
+@media (max-width:600px) {
+  .recNome { font-size:0.80rem; }
+  .procNome { font-size:0.68rem; }
+  .modal { max-height:95vh; }
+  .modalObject { min-height:70vh; }
 }
-
-/* ── Viewer iframe ───────────────────────────────────────── */
-.viewer {
-  border: 1px solid var(--brdg);
-  background: rgba(0,0,0,.3);
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin-bottom: 8px;
-}
-.viewerHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--brd);
-  background: rgba(0,170,255,.06);
-}
-.viewerNome {
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  color: var(--acc2);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.viewerActions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
-.viewerBtn {
-  font-family: var(--mono);
-  font-size: 0.62rem;
-  color: var(--acc2);
-  border: 1px solid var(--acc);
-  background: rgba(0,170,255,.08);
-  padding: 2px 8px;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-}
-.viewerBtn:hover { background: rgba(0,170,255,.18); }
-.viewerClose {
-  background: none;
-  border: 1px solid var(--brd);
-  color: var(--txtd);
-  width: 20px; height: 20px;
-  cursor: pointer;
-  font-size: 0.62rem;
-  display: flex; align-items: center; justify-content: center;
-}
-.viewerClose:hover { border-color: var(--txtd); color: var(--txt); }
-.viewerFrame {
-  width: 100%;
-  height: 480px;
-  border: none;
-  background: #fff;
-}
-.viewerTabBtn {
-  display: block;
-  font-family: var(--mono);
-  font-size: 0.65rem;
-  color: var(--txtd);
-  text-decoration: none;
-  padding: 6px 10px;
-  border-top: 1px solid var(--brd);
-  text-align: center;
-  transition: color .15s, background .15s;
-}
-.viewerTabBtn:hover { color: var(--acc2); background: rgba(0,170,255,.05); }
-
-/* ── Botão VER ───────────────────────────────────────────── */
-.cartaNomeBtn {
-  background: none;
-  border: none;
-  color: var(--txtb);
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  cursor: pointer;
-  text-align: left;
-  flex: 1;
-  padding: 0;
-  transition: color .15s;
-}
-.cartaNomeBtn:hover { color: var(--acc2); }
-.cartaBtnView {
-  color: var(--acc2);
-  border-color: var(--acc);
-  background: rgba(0,170,255,.06);
-}
-.cartaBtnView:hover { background: rgba(0,170,255,.15); }
-
-/* ── Modal overlay ───────────────────────────────────────── */
-.modalOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.75);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  backdrop-filter: blur(2px);
-}
-
-.modal {
-  background: var(--bg, #060a0e);
-  border: 1px solid var(--brdg);
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: 900px;
-  max-height: 90vh;
-  box-shadow: 0 8px 40px rgba(0,0,0,.8);
-}
-
-.modalHeader {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--brd);
-  background: rgba(0,170,255,.06);
-  flex-shrink: 0;
-}
-
-.modalNome {
-  font-family: var(--mono);
-  font-size: 0.80rem;
-  color: var(--acc2);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.modalActions {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.modalBtn {
-  font-family: var(--mono);
-  font-size: 0.65rem;
-  color: var(--acc2);
-  border: 1px solid var(--acc);
-  background: rgba(0,170,255,.08);
-  padding: 3px 10px;
-  text-decoration: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  transition: background .15s;
-  white-space: nowrap;
-}
-.modalBtn:hover { background: rgba(0,170,255,.2); }
-
-.modalClose {
-  background: none;
-  border: 1px solid var(--brd);
-  color: var(--txtd);
-  width: 24px; height: 24px;
-  cursor: pointer;
-  font-size: 0.65rem;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  transition: border-color .15s, color .15s;
-}
-.modalClose:hover { border-color: var(--txtd); color: var(--txt); }
-
-.modalBody {
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
-
-.modalObject {
-  width: 100%;
-  height: 100%;
-  min-height: 60vh;
-  display: block;
-}
-
-.modalFallback {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  height: 60vh;
-  color: var(--txtd);
-  font-family: var(--mono);
-  font-size: 0.80rem;
-}
-
-/* Botão VER e nome clicável */
-.cartaNomeBtn {
-  background: none;
-  border: none;
-  color: var(--txtb);
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  cursor: pointer;
-  text-align: left;
-  flex: 1;
-  padding: 0;
-  transition: color .15s;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cartaNomeBtn:hover { color: var(--acc2); }
-
-.cartaBtnView {
-  color: var(--acc2);
-  border-color: var(--acc);
-  background: rgba(0,170,255,.06);
-}
-.cartaBtnView:hover { background: rgba(0,170,255,.15); }
-
-/* Mobile */
-@media (max-width: 600px) {
-  .modal { max-height: 95vh; }
-  .modalObject { min-height: 70vh; }
-}
+.amdt { font-family:var(--mono); font-size:0.60rem; color:var(--txtd); opacity:.7; text-align:right; margin-top:4px; }
+/* tipos */
+.tipoSelector { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:10px; border-bottom:1px solid var(--brd); padding-bottom:8px; }
+.tipoTab, .tipoTabActive { display:flex; align-items:center; gap:5px; padding:2px 10px; font-family:var(--disp); font-size:0.68rem; letter-spacing:1px; border:1px solid var(--brd); background:none; cursor:pointer; transition:all .15s; }
+.tipoTab { color:var(--txtd); }
+.tipoTab:hover:not(:disabled) { color:var(--txtb); border-color:var(--acc); }
+.tipoTab:disabled { opacity:.3; cursor:not-allowed; }
+.tipoTabActive { color:var(--acc2); border-color:var(--acc); background:rgba(0,170,255,.1); }
+.tipoCount { font-family:var(--mono); font-size:0.60rem; color:var(--txtd); background:rgba(0,0,0,.2); padding:0 4px; border-radius:2px; }
+.tipoTabActive .tipoCount { color:var(--acc2); }
+.tipoLabel { font-family:var(--disp); font-size:0.62rem; letter-spacing:1.5px; color:var(--txtd); margin-bottom:6px; }
+.cartaList { list-style:none; margin:0 0 8px; padding:0; display:flex; flex-direction:column; gap:3px; max-height:320px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--brd) transparent; }
+.cartaItem { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 10px; background:rgba(0,0,0,.2); border:1px solid transparent; transition:background .15s, border-color .15s; }
+.cartaItem:hover { background:rgba(0,170,255,.05); border-color:var(--brdg); }
+.cartaMain { display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
+.cartaIcp { font-family:var(--disp); font-size:0.60rem; letter-spacing:1px; color:var(--txtd); flex-shrink:0; border:1px solid var(--brd); padding:0 5px; }
+.empty { font-family:var(--mono); font-size:0.75rem; color:var(--txtd); padding:8px 0; text-align:center; }
