@@ -132,6 +132,7 @@ export function ProceduresPanel({ dep, arr }: ProceduresPanelProps) {
     setError: (e: string|null) => void,
     signal: AbortSignal
   ) => {
+    if (!icao || icao.length < 2) { setLoading(false); return; }
     setLoading(true); setError(null);
     fetch(`/api/procedure-intelligence?icao=${icao}&type=${type}`, { signal })
       .then(r => r.json())
@@ -141,12 +142,14 @@ export function ProceduresPanel({ dep, arr }: ProceduresPanelProps) {
   };
 
   useEffect(() => {
+    if (!dep || dep.length < 3) return;
     const ctrl = new AbortController();
     fetchIntel(dep, 'dep', setDepData, setLoadingDep, setErrorDep, ctrl.signal);
     return () => ctrl.abort();
   }, [dep]);
 
   useEffect(() => {
+    if (!arr || arr.length < 3) return;
     const ctrl = new AbortController();
     fetchIntel(arr, 'arr', setArrData, setLoadingArr, setErrorArr, ctrl.signal);
     return () => ctrl.abort();
