@@ -1,10 +1,9 @@
-// src/app/api/procedure-intelligence/route.ts
+// src/app/api/route-intelligence/route.ts
 // Arquitetura: Backend decide → LLM comunica
-// Fluxo: ingestão → normalização → parse → RWY ativa → score → seleção → LLM (linguagem apenas)
+// Fluxo: rawData → normalize → flags → threats → riskScore → Claude (linguagem apenas)
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const AISWEB_BASE   = 'https://api.decea.mil.br/aisweb/';
 const REDEMET_KEY   = process.env.REDEMET_KEY ?? process.env.REDEMET_API_KEY ?? '';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY ?? process.env.ANTHROPIC_API_KEY ?? '';
 
@@ -12,47 +11,35 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY ?? process.env.ANTHROPIC_API_KEY
 // CAMADA 1 — INGESTÃO
 // ─────────────────────────────────────────────────────────
 
-async function fetchCartas(icao: string): Promise<any[]> {
-  const user = process.env.AISWEB_USER;
-  const pass = process.env.AISWEB_PASS;
-  if (!user || !pass) return [];
+function redemetWindow(hoursBack: number) {
+  const now   = new Date();
+  const start = new Date(now.getTime() - hoursBack * 3600_000);
+  const fmt   = (d: Date) =>
+    `${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,'0')}` +
+    `${String(d.getUTCDate()).padStart(2,'0')}${String(d.getUTCHours()).padStart(2,'0')}`;
+  return { dataIni: fmt(start), dataFim: fmt(now) };
+}
+
+async function fetchTaf(icao: string): Promise<string> {
+  if (!REDEMET_KEY) return '';
   try {
-    const q = new URLSearchParams({ apiKey: user, apiPass: pass, area: 'cartas', icao });
-    const res = await fetch(`${AISWEB_BASE}?${q}`, {
-      next: { revalidate: 43200 },
-      signal: AbortSignal.timeout(12_000),
-    });
-    if (!res.ok) return [];
-    const xml = await res.text();
-    const items: any[] = [];
-    const itemRe = /<item[^>]*>([\s\S]*?)<\/item>/g;
-    let m: RegExpExecArray | null;
-    while ((m = itemRe.exec(xml)) !== null) {
-      const block = m[1];
-      const get = (tag: string) => {
-        const r = new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>|<${tag}[^>]*>([^<]*)<\\/${tag}>`);
-        const match = r.exec(block);
-        return (match?.[1] ?? match?.[2] ?? '').trim();
-      };
-      const icaoCode = get('IcaoCode');
-      if (icaoCode && icaoCode.toUpperCase() !== icao.toUpperCase()) continue;
-      items.push({ id: get('id'), tipo: get('tipo'), nome: get('nome'), link: get('link'), icp: get('icp') });
-    }
-    return items;
-  } catch { return []; }
+    const { dataIni, dataFim } = redemetWindow(6);
+    const res = await fetch(
+      `https://api-redemet.decea.mil.br/mensagens/taf/${icao}?api_key=${REDEMET_KEY}&data_ini=${dataIni}&data_fim=${dataFim}&fim_linha=texto`,
+      { next: { revalidate: 900 }, signal: AbortSignal.timeout(8000) }
+    );
+    const json = await res.json();
+    return json?.data?.data?.[0]?.mens ?? '';
+  } catch { return ''; }
 }
 
 async function fetchMetar(icao: string): Promise<string> {
   if (!REDEMET_KEY) return '';
   try {
-    const now   = new Date();
-    const start = new Date(now.getTime() - 2 * 3600_000);
-    const fmt   = (d: Date) =>
-      `${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,'0')}` +
-      `${String(d.getUTCDate()).padStart(2,'0')}${String(d.getUTCHours()).padStart(2,'0')}`;
+    const { dataIni, dataFim } = redemetWindow(2);
     const res = await fetch(
-      `https://api-redemet.decea.mil.br/mensagens/metar/${icao}?api_key=${REDEMET_KEY}&data_ini=${fmt(start)}&data_fim=${fmt(now)}`,
-      { next: { revalidate: 120 }, signal: AbortSignal.timeout(6_000) }
+      `https://api-redemet.decea.mil.br/mensagens/metar/${icao}?api_key=${REDEMET_KEY}&data_ini=${dataIni}&data_fim=${dataFim}`,
+      { next: { revalidate: 120 }, signal: AbortSignal.timeout(8000) }
     );
     const json = await res.json();
     const msgs = json?.data?.data ?? [];
@@ -60,20 +47,38 @@ async function fetchMetar(icao: string): Promise<string> {
   } catch { return ''; }
 }
 
+async function fetchSigmets(): Promise<any[]> {
+  if (!REDEMET_KEY) return [];
+  try {
+    const res = await fetch(
+      `https://api-redemet.decea.mil.br/mensagens/sigmet/?api_key=${REDEMET_KEY}&pais=Brasil&page_tam=150`,
+      { next: { revalidate: 300 }, signal: AbortSignal.timeout(8000) }
+    );
+    const json = await res.json();
+    const now  = Date.now();
+    return (json?.data?.data ?? []).filter((s: any) => {
+      const fim = new Date(s.validade_final.replace(' ', 'T') + 'Z').getTime();
+      return fim > now;
+    });
+  } catch { return []; }
+}
+
 // ─────────────────────────────────────────────────────────
 // CAMADA 2 — NORMALIZAÇÃO (texto → dados)
 // ─────────────────────────────────────────────────────────
 
-interface ProcEnv {
-  windDir:       number;
-  windSpeedKt:   number;
-  gustKt:        number;
-  isCalm:        boolean;
-  isVRB:         boolean;
-  hasCB:         boolean;
-  hasLowCeiling: boolean;
-  hasLowVis:     boolean;
-  isDegraded:    boolean;
+interface Normalized {
+  ceilingDepFt: number;
+  ceilingArrFt: number;
+  visDepMt:     number;
+  visArrMt:     number;
+  windDepKt:    number;
+  gustDepKt:    number;
+  windArrKt:    number;
+  gustArrKt:    number;
+  hasCbDep:     boolean;
+  hasCbArr:     boolean;
+  hasCbSigmet:  boolean;
 }
 
 function parseCeilingFt(text: string): number {
@@ -86,292 +91,284 @@ function parseCeilingFt(text: string): number {
   return min;
 }
 
-// Fix: evitar capturar QNH ou timestamps como visibilidade
 function parseVisMt(text: string): number {
   if (/CAVOK/i.test(text)) return 9999;
   const sm = text.match(/(\d+(?:\.\d+)?)SM/);
   if (sm) return Math.round(parseFloat(sm[1]) * 1609);
-  // Visibilidade métrica: 4 dígitos seguidos de fenômeno met ou espaço/fim
-  const visMatch = text.match(/\b(\d{4})\b(?=\s*(?:BR|FG|HZ|DZ|RA|SN|TS|NSW|\s|$))/);
-  return visMatch ? parseInt(visMatch[1]) : 9999;
+  const m = text.match(/\b(\d{4})\b/);
+  return m ? parseInt(m[1]) : 9999;
+}
+
+function parseWindKt(text: string): { spd: number; gust: number } {
+  const m = text.match(/\b(?:VRB|\d{3})(\d{2,3})(?:G(\d{2,3}))?KT\b/);
+  if (!m) return { spd: 0, gust: 0 };
+  return { spd: parseInt(m[1]), gust: m[2] ? parseInt(m[2]) : 0 };
 }
 
 function hasCbTs(text: string): boolean {
-  return /\b(CB|TS|TSRA|TSGR|TSSN)\b/i.test(text);
+  return /\b(CB|TS|TSRA|TSGR|TSSN|TSSQ)\b/i.test(text);
 }
 
-function normalizeEnv(metar: string, taf: string): ProcEnv {
-  const windM   = metar.match(/\b(VRB|\d{3})(\d{2,3})(?:G(\d{2,3}))?KT\b/);
-  const isVRB   = windM?.[1] === 'VRB';
-  const windSpd = windM ? parseInt(windM[2]) : 0;
-  const isCalm  = !windM || windSpd < 3;
-  const windDir = (windM && !isVRB) ? parseInt(windM[1]) : 0;
-  const gust    = windM?.[3] ? parseInt(windM[3]) : 0;
-  const allText = `${metar} ${taf}`;
-  const ceiling = parseCeilingFt(allText);
-  const vis     = parseVisMt(allText);
-  const hasCB   = hasCbTs(allText);
-
+function normalize(
+  depMetar: string, arrMetar: string,
+  depTaf: string, arrTaf: string,
+  sigmets: any[]
+): Normalized {
+  const wDep = parseWindKt(depMetar);
+  const wArr = parseWindKt(arrMetar);
   return {
-    windDir, windSpeedKt: windSpd, gustKt: gust,
-    isCalm, isVRB, hasCB,
-    hasLowCeiling: ceiling < 1500,
-    hasLowVis:     vis < 5000,
-    isDegraded:    hasCB || ceiling < 1500 || vis < 5000,
+    ceilingDepFt: parseCeilingFt(`${depMetar} ${depTaf}`),
+    ceilingArrFt: parseCeilingFt(`${arrMetar} ${arrTaf}`),
+    visDepMt:     parseVisMt(`${depMetar} ${depTaf}`),
+    visArrMt:     parseVisMt(`${arrMetar} ${arrTaf}`),
+    windDepKt:    wDep.spd,
+    gustDepKt:    wDep.gust,
+    windArrKt:    wArr.spd,
+    gustArrKt:    wArr.gust,
+    hasCbDep:     hasCbTs(`${depMetar} ${depTaf}`),
+    hasCbArr:     hasCbTs(`${arrMetar} ${arrTaf}`),
+    hasCbSigmet:  sigmets.some(s => /TS|CB/.test(s.fenomeno)),
   };
 }
 
 // ─────────────────────────────────────────────────────────
-// CAMADA 3 — PARSE DE PROCEDIMENTOS
+// CAMADA 3 — MOTOR DE FLAGS
 // ─────────────────────────────────────────────────────────
 
-interface ParsedProcedure {
-  id:     string;
-  tipo:   string;
-  nome:   string;
-  rwy:    string;    // normalizado sem L/R/C, ex: "29", "10"
-  rwyRaw: string;    // original, ex: "10R"
-  suffix: string;    // "1B", "2A"
-  link:   string;
-  icp:    string;
+interface Flags {
+  hasSigmet:        boolean;
+  hasCB:            boolean;
+  hasLowCeilingArr: boolean;
+  hasLowCeilingDep: boolean;
+  hasStrongWindArr: boolean;
+  hasStrongWindDep: boolean;
+  hasLowVisArr:     boolean;
+  hasLowVisDep:     boolean;
+  isBothVMC:        boolean;
+  hasDetermination: boolean;
 }
 
-function normalizeRwy(rwy: string): string {
-  return rwy.replace(/[LRC]/gi, '').trim();
-}
-
-function parseProcedures(raw: any[], tipoFiltro: string[]): ParsedProcedure[] {
-  return raw
-    .filter(p => tipoFiltro.includes((p.tipo ?? '').toUpperCase()))
-    .map(p => {
-      const rwyM   = p.nome.match(/RWY\s+(\d{1,2}[LRC]?)/i);
-      const rwyRaw = rwyM ? rwyM[1].toUpperCase() : 'GERAL';
-      const rwy    = normalizeRwy(rwyRaw);
-      const sufM   = p.nome.match(/\b(\d[A-Z])\b/);
-      const suffix = sufM ? sufM[1] : '';
-      return { ...p, rwy, rwyRaw, suffix };
-    });
-}
-
-// ─────────────────────────────────────────────────────────
-// CAMADA 4 — RWY ATIVA (determinístico)
-// ─────────────────────────────────────────────────────────
-
-function runwayHeading(rwy: string): number {
-  const n = parseInt(normalizeRwy(rwy));
-  return isNaN(n) ? 0 : n * 10;
-}
-
-function angleDiff(a: number, b: number): number {
-  const d = Math.abs(a - b);
-  return Math.min(d, 360 - d);
-}
-
-function getActiveRunway(env: ProcEnv, runways: string[]): string | null {
-  if (!runways.length) return null;
-
-  // Calmaria ou VRB: sem determinação por vento, usar primeira RWY como fallback
-  // (decisão existe mas sem base meteorológica)
-  if (env.isCalm || env.isVRB) return runways[0] ?? null;
-
-  let best = runways[0];
-  let minDiff = 999;
-
-  for (const rwy of runways) {
-    const diff = angleDiff(env.windDir, runwayHeading(rwy));
-    if (diff < minDiff) { minDiff = diff; best = rwy; }
+function tafHasDetermination(tafText: string): boolean {
+  if (!tafText) return false;
+  const nowH = new Date().getUTCHours();
+  const blocks = tafText.match(/(TEMPO|BECMG)\s+\d{4}\/\d{4}[^\n]*/g) ?? [];
+  for (const block of blocks) {
+    const tm = block.match(/\d{4}\/(\d{2})(\d{2})/);
+    if (!tm) continue;
+    const diff = ((parseInt(tm[2]) - nowH + 24) % 24);
+    if (diff > 6) continue;
+    if (/CB|TS|FG|BKN0[0-4]|OVC0[0-4]/i.test(block)) return true;
   }
+  return false;
+}
 
-  // Só declarar ativa se componente de proa real (diff < 90°)
-  return minDiff < 90 ? best : runways[0];
+function computeFlags(n: Normalized, sigmets: any[], arrTaf: string): Flags {
+  const isVMCDep = n.visDepMt >= 5000 && n.ceilingDepFt >= 1500;
+  const isVMCArr = n.visArrMt >= 5000 && n.ceilingArrFt >= 1500;
+  return {
+    hasSigmet:        sigmets.length > 0,
+    hasCB:            n.hasCbDep || n.hasCbArr || n.hasCbSigmet,
+    hasLowCeilingArr: n.ceilingArrFt < 1500,
+    hasLowCeilingDep: n.ceilingDepFt < 1500,
+    hasStrongWindArr: n.windArrKt >= 25 || n.gustArrKt >= 35,
+    hasStrongWindDep: n.windDepKt >= 25 || n.gustDepKt >= 35,
+    hasLowVisArr:     n.visArrMt < 5000,
+    hasLowVisDep:     n.visDepMt < 5000,
+    isBothVMC:        isVMCDep && isVMCArr,
+    hasDetermination: tafHasDetermination(arrTaf),
+  };
 }
 
 // ─────────────────────────────────────────────────────────
-// CAMADA 5 — SCORE (determinístico)
+// CAMADA 4 — MOTOR DE DECISÃO (100% sem LLM)
 // ─────────────────────────────────────────────────────────
 
-function scoreProcedure(
-  proc: ParsedProcedure,
-  activeRwy: string | null,
-  env: ProcEnv,
-  routeFlags?: { hasCBInInitialSector?: boolean }
-): number {
-  let score = 50;
+type Severity = 'low' | 'medium' | 'high';
+type ThreatType =
+  | 'SIGMET' | 'CB'
+  | 'LOW_CEILING_ARR' | 'LOW_CEILING_DEP'
+  | 'STRONG_WIND_ARR' | 'STRONG_WIND_DEP'
+  | 'LOW_VIS_ARR'     | 'LOW_VIS_DEP';
 
-  // RWY ativa — critério principal (comparação normalizada)
-  if (activeRwy) {
-    const procNorm   = normalizeRwy(proc.rwy);
-    const activeNorm = normalizeRwy(activeRwy);
-    if (proc.rwy === 'GERAL')             score -= 20;
-    else if (procNorm === activeNorm)     score += 50;
-    else                                  score -= 50;
-  }
-
-  // Cenário degradado → preferir letra A (mais simples)
-  if (env.isDegraded) {
-    const letter = proc.suffix?.[1] ?? 'A';
-    if (letter === 'A')      score += 5;
-    else if (letter >= 'C') score -= 5;
-  }
-
-  // CB penaliza apenas procedimentos da RWY ativa (mantém diferenciação relativa)
-  if (env.hasCB && activeRwy && normalizeRwy(proc.rwy) === normalizeRwy(activeRwy)) {
-    score -= 10;
-  }
-
-  // Integração rota+procedimento: CB no setor inicial da rota penaliza mais
-  if (routeFlags?.hasCBInInitialSector && activeRwy &&
-      normalizeRwy(proc.rwy) === normalizeRwy(activeRwy)) {
-    score -= 20;
-  }
-
-  return score;
+interface ThreatRaw {
+  type:     ThreatType;
+  severity: Severity;
+  icon:     string;
+  textKey:  string;
+  impact:   string;
 }
 
-// ─────────────────────────────────────────────────────────
-// CAMADA 6 — SELEÇÃO E TAGS
-// ─────────────────────────────────────────────────────────
+// Prioridade decrescente — slice(0,4) garante os mais críticos
+const THREAT_MAP: { flag: keyof Flags; threat: ThreatRaw }[] = [
+  {
+    flag: 'hasSigmet',
+    threat: { type:'SIGMET', severity:'high', icon:'⛈️',
+      textKey:'SIGMET ativo na rota',
+      impact:'Consultar despacho — possíveis desvios e combustível extra' },
+  },
+  {
+    flag: 'hasCB',
+    threat: { type:'CB', severity:'high', icon:'⛈️',
+      textKey:'CB/TS identificado nos dados',
+      impact:'Planejar desvios — reserva extra de combustível' },
+  },
+  {
+    flag: 'hasLowCeilingArr',
+    threat: { type:'LOW_CEILING_ARR', severity:'medium', icon:'☁️',
+      textKey:'Teto baixo previsto na chegada',
+      impact:'Verificar mínimos IAC — possível necessidade de alternado' },
+  },
+  {
+    flag: 'hasLowCeilingDep',
+    threat: { type:'LOW_CEILING_DEP', severity:'medium', icon:'☁️',
+      textKey:'Teto baixo na partida',
+      impact:'Possível demora na liberação IFR pelo ACC/APP' },
+  },
+  {
+    flag: 'hasStrongWindArr',
+    threat: { type:'STRONG_WIND_ARR', severity:'medium', icon:'💨',
+      textKey:'Vento forte na chegada',
+      impact:'Verificar componente de través e limitações de performance' },
+  },
+  {
+    flag: 'hasStrongWindDep',
+    threat: { type:'STRONG_WIND_DEP', severity:'medium', icon:'💨',
+      textKey:'Vento forte na partida',
+      impact:'Verificar limitações de decolagem — performance reduzida' },
+  },
+  {
+    flag: 'hasLowVisArr',
+    threat: { type:'LOW_VIS_ARR', severity:'medium', icon:'🌫️',
+      textKey:'Baixa visibilidade na chegada',
+      impact:'Verificar mínimos de aproximação — possível alternado' },
+  },
+  {
+    flag: 'hasLowVisDep',
+    threat: { type:'LOW_VIS_DEP', severity:'medium', icon:'🌫️',
+      textKey:'Baixa visibilidade na partida',
+      impact:'Verificar mínimos de decolagem do operador' },
+  },
+];
 
-type ProcTag = 'RECOMENDADA' | 'RWY_ATIVA' | 'VENTO_FAVORAVEL'
-             | 'CB_NA_AREA'  | 'TETO_BAIXO' | 'CALMARIA' | 'VRB';
-
-const TAG_LABELS: Record<ProcTag, string> = {
-  RECOMENDADA:     '⭐ RECOMENDADA',
-  RWY_ATIVA:       '🟢 RWY ATIVA',
-  VENTO_FAVORAVEL: '✅ VENTO FAVORÁVEL',
-  CB_NA_AREA:      '⛈️ CB NA ÁREA',
-  TETO_BAIXO:      '☁️ TETO BAIXO',
-  CALMARIA:        '🔵 CALMARIA',
-  VRB:             '🔵 VENTO VARIÁVEL',
-};
-
-interface ScoredProcedure extends ParsedProcedure {
-  score:       number;
-  recommended: boolean;
-  tags:        ProcTag[];
-  tagLabels:   string[];
-}
-
-function buildScoredProcedures(
-  procs: ParsedProcedure[],
-  activeRwy: string | null,
-  env: ProcEnv,
-  routeFlags?: { hasCBInInitialSector?: boolean }
-): ScoredProcedure[] {
-  const scored: ScoredProcedure[] = procs.map(p => {
-    const score = scoreProcedure(p, activeRwy, env, routeFlags);
-    const tags: ProcTag[] = [];
-    const isActiveRwy = activeRwy && normalizeRwy(p.rwy) === normalizeRwy(activeRwy);
-
-    if (isActiveRwy) {
-      tags.push('RWY_ATIVA');
-      tags.push('VENTO_FAVORAVEL');
+function buildThreats(flags: Flags): ThreatRaw[] {
+  const threats: ThreatRaw[] = [];
+  for (const { flag, threat } of THREAT_MAP) {
+    if (flags[flag]) {
+      // Se já tem SIGMET, não adicionar CB separado (são a mesma ameaça)
+      if (threat.type === 'CB' && flags.hasSigmet) continue;
+      threats.push(threat);
     }
-    if (env.isCalm)        tags.push('CALMARIA');
-    if (env.isVRB)         tags.push('VRB');
-    if (env.hasCB)         tags.push('CB_NA_AREA');
-    if (env.hasLowCeiling) tags.push('TETO_BAIXO');
-
-    return { ...p, score, recommended: false, tags, tagLabels: tags.map(t => TAG_LABELS[t]) };
-  });
-
-  // Ordenação com desempate determinístico
-  scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    const aNorm = normalizeRwy(a.rwy);
-    const bNorm = normalizeRwy(b.rwy);
-    const actN  = activeRwy ? normalizeRwy(activeRwy) : '';
-    if (aNorm === actN && bNorm !== actN) return -1;
-    if (bNorm === actN && aNorm !== actN) return  1;
-    return a.nome.localeCompare(b.nome);
-  });
-
-  // Marcar recomendado
-  if (scored.length > 0) {
-    scored[0].recommended = true;
-    scored[0].tags.unshift('RECOMENDADA');
-    scored[0].tagLabels.unshift(TAG_LABELS.RECOMENDADA);
+    if (threats.length === 4) break;
   }
+  return threats;
+}
 
-  return scored;
+function calculateRisk(flags: Flags, threats: ThreatRaw[]): {
+  riskScore: number;
+  riskLabel: string;
+  statusLevel: string;
+} {
+  const base  = flags.isBothVMC ? 5 : 20;
+  const points = threats.reduce((sum, t) =>
+    sum + (t.severity === 'high' ? 30 : t.severity === 'medium' ? 20 : 10), 0);
+  const riskScore = Math.min(base + points, 100);
+
+  const riskLabel   = riskScore <= 20 ? 'BAIXO' : riskScore <= 50 ? 'MODERADO' : riskScore <= 75 ? 'ALTO' : 'CRÍTICO';
+  const statusLevel = riskScore <= 20 ? 'ok'    : riskScore <= 50 ? 'caution'  : riskScore <= 75 ? 'warning' : 'critical';
+
+  return { riskScore, riskLabel, statusLevel };
+}
+
+function buildWindow(flags: Flags, arrTaf: string): {
+  best: string; deterioration: string; hasDetermination: boolean;
+} {
+  if (!flags.hasDetermination) {
+    return { best: 'Sem variação significativa prevista', deterioration: '', hasDetermination: false };
+  }
+  // Extrair horário real do bloco adverso no TAF
+  const blocks = arrTaf.match(/(TEMPO|BECMG)\s+(\d{4})\/(\d{4})[^\n]*/g) ?? [];
+  let deteriorationTime = '';
+  const nowH = new Date().getUTCHours();
+  for (const block of blocks) {
+    const tm = block.match(/\d{4}\/(\d{2})(\d{2})/);
+    if (!tm) continue;
+    const diff = ((parseInt(tm[2]) - nowH + 24) % 24);
+    if (diff > 6) continue;
+    if (/CB|TS|FG|BKN0[0-4]|OVC0[0-4]/i.test(block)) {
+      deteriorationTime = `${tm[2]}:${tm[3] ?? '00'}Z`;
+      break;
+    }
+  }
+  return {
+    best: `Agora → ${deteriorationTime || 'próximas 2h'}`,
+    deterioration: deteriorationTime ? `Após ${deteriorationTime} — ver TAF ${arrTaf.slice(0,4)}` : 'Piora prevista — verificar TAF',
+    hasDetermination: true,
+  };
 }
 
 // ─────────────────────────────────────────────────────────
-// CAMADA 7 — AGRUPAMENTO POR RWY
-// ─────────────────────────────────────────────────────────
-
-interface RwyGroup {
-  rwy:        string;
-  active:     boolean;
-  heading:    number;
-  procedures: ScoredProcedure[];
-}
-
-function groupByRwy(procs: ScoredProcedure[], activeRwy: string | null): RwyGroup[] {
-  const map = new Map<string, ScoredProcedure[]>();
-  for (const p of procs) {
-    if (!map.has(p.rwy)) map.set(p.rwy, []);
-    map.get(p.rwy)!.push(p);
-  }
-
-  const groups: RwyGroup[] = [];
-  for (const [rwy, list] of map.entries()) {
-    groups.push({
-      rwy,
-      active:     activeRwy ? normalizeRwy(rwy) === normalizeRwy(activeRwy) : false,
-      heading:    runwayHeading(rwy),
-      procedures: list,
-    });
-  }
-
-  groups.sort((a, b) => {
-    if (a.active && !b.active) return -1;
-    if (!a.active && b.active) return  1;
-    return a.heading - b.heading;
-  });
-
-  return groups;
-}
-
-// ─────────────────────────────────────────────────────────
-// CAMADA 8 — LLM (linguagem apenas)
+// CAMADA 5 — LLM (linguagem apenas)
 // ─────────────────────────────────────────────────────────
 
 function buildPrompt(
-  icao: string,
-  type: 'dep' | 'arr',
-  recommended: ScoredProcedure,
-  activeRwy: string | null,
-  env: ProcEnv,
-  isWindDetermined: boolean
+  dep: string, arr: string,
+  depMetar: string, arrMetar: string,
+  depTaf: string, arrTaf: string,
+  sigmets: any[],
+  flags: Flags,
+  threats: ThreatRaw[],
+  risk: { riskScore: number; riskLabel: string; statusLevel: string },
+  window: { best: string; deterioration: string; hasDetermination: boolean }
 ): string {
-  const windStr = env.isCalm   ? 'Calmaria'
-    : env.isVRB                ? 'Variável (VRB)'
-    : `${String(env.windDir).padStart(3,'0')}°/${env.windSpeedKt}kt${env.gustKt ? ` G${env.gustKt}kt` : ''}`;
+  const sigmetText = sigmets.length === 0
+    ? 'Nenhum SIGMET ativo.'
+    : sigmets.map(s =>
+        `FIR ${s.id_fir} | ${s.fenomeno} | ${s.validade_inicial.slice(11,16)}–${s.validade_final.slice(11,16)}Z`
+      ).join('\n');
 
-  return `Você é a camada de linguagem do sistema Dumont. Não decide nada — apenas redige.
+  const threatsJson = JSON.stringify(threats.map(t => ({
+    type: t.type, icon: t.icon, text: t.textKey, impact: t.impact, severity: t.severity
+  })), null, 2);
 
-PROCEDIMENTO RECOMENDADO (já escolhido pelo backend): ${recommended.nome}
-AERÓDROMO: ${icao}
-TIPO: ${type === 'dep' ? 'SID — Saída Padrão por Instrumentos' : 'STAR/IAC — Chegada por Instrumentos'}
-RWY: ${recommended.rwyRaw !== 'GERAL' ? recommended.rwyRaw : 'não especificada'}
-RWY ATIVA: ${activeRwy ? `${activeRwy}${!isWindDetermined ? ' (fallback — sem vento determinado)' : ''}` : 'não determinada'}
-VENTO: ${windStr}
-CB NA ÁREA: ${env.hasCB}
-TETO BAIXO: ${env.hasLowCeiling}
-CENÁRIO DEGRADADO: ${env.isDegraded}
+  return `Você é a camada de linguagem do sistema Dumont. Sua única função é redigir textos operacionais concisos em português brasileiro com base nos dados já processados. Você NÃO calcula, NÃO decide, NÃO altera valores numéricos.
 
-TAREFA — responda APENAS com JSON, sem markdown:
+ROTA: ${dep} → ${arr}
+METAR ${dep}: ${depMetar || 'N/D'}
+METAR ${arr}: ${arrMetar || 'N/D'}
+TAF ${arr}: ${arrTaf || 'N/D'}
+SIGMETs: ${sigmetText}
+
+DECISÕES JÁ TOMADAS PELO BACKEND (não altere):
+riskScore: ${risk.riskScore}
+riskLabel: ${risk.riskLabel}
+statusLevel: ${risk.statusLevel}
+threats: ${threatsJson}
+window.best: ${window.best}
+window.deterioration: ${window.deterioration}
+window.hasDetermination: ${window.hasDetermination}
+
+SUA ÚNICA TAREFA:
+1. Redigir o campo "status" seguindo EXATAMENTE o template:
+   "[ROTA] + [nível operacional] | [ameaça principal]"
+   Exemplos válidos:
+   "ROTA NORMAL | Sem ameaças significativas"
+   "ROTA COM RESTRIÇÕES | Teto baixo na chegada"
+   "ROTA COM ATENÇÃO | CBs identificados na rota"
+   "ROTA CRÍTICA | SIGMET ativo + teto baixo"
+
+2. Redigir "criticalPoints" — máximo 2, apenas se houver ameaças reais:
+   { "point": "FIR ou trecho", "issue": "≤ 10 palavras" }
+
+Responda APENAS com JSON, sem markdown:
 {
-  "reasons": ["razão 1 ≤ 8 palavras", "razão 2 ≤ 8 palavras"],
-  "briefing": "3-4 linhas. Tipo de navegação (RNAV ou convencional se inferível), alinhamento com RWY, contexto meteorológico se relevante. NÃO inventar altitudes, curvas, waypoints ou restrições específicas."
-}
-
-REGRAS ABSOLUTAS:
-- Máximo 2 reasons baseadas nos dados fornecidos
-- Nunca inventar "subir para FL080", "curva à esquerda após 400ft" etc.
-- Se cenário degradado, mencionar atenção extra de forma genérica
-- Responda em português brasileiro`;
+  "status": "...",
+  "statusLevel": "${risk.statusLevel}",
+  "riskScore": ${risk.riskScore},
+  "riskLabel": "${risk.riskLabel}",
+  "threats": ${threatsJson},
+  "window": ${JSON.stringify(window)},
+  "criticalPoints": []
+}`;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -380,70 +377,34 @@ REGRAS ABSOLUTAS:
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
-  const icao = searchParams.get('icao')?.toUpperCase();
-  const type = (searchParams.get('type') ?? 'dep') as 'dep' | 'arr';
-  // Flag opcional passada pelo RoutePanel para integração rota+procedimento
-  const routeHasCB = searchParams.get('routeHasCB') === 'true';
+  const dep = searchParams.get('dep')?.toUpperCase();
+  const arr = searchParams.get('arr')?.toUpperCase();
 
-  if (!icao) return NextResponse.json({ error: 'icao obrigatório' }, { status: 400 });
+  if (!dep || !arr) return NextResponse.json({ error: 'dep e arr obrigatórios' }, { status: 400 });
   if (!ANTHROPIC_KEY) return NextResponse.json({ error: 'ANTHROPIC_KEY não configurada' }, { status: 503 });
 
-  // Camada 1 — Ingestão paralela
-  const [cartas, metar] = await Promise.all([fetchCartas(icao), fetchMetar(icao)]);
+  // Camada 1 — Ingestão
+  const [depTaf, arrTaf, depMetar, arrMetar, sigmets] = await Promise.all([
+    fetchTaf(dep), fetchTaf(arr), fetchMetar(dep), fetchMetar(arr), fetchSigmets(),
+  ]);
 
   // Camada 2 — Normalização
-  const env = normalizeEnv(metar, '');
+  const normalized = normalize(depMetar, arrMetar, depTaf, arrTaf, sigmets);
 
-  // Camada 3 — Parse de procedimentos
-  const tipoFiltro = type === 'dep' ? ['SID'] : ['STAR', 'IAC', 'ARC'];
-  const parsed     = parseProcedures(cartas, tipoFiltro);
+  // Camada 3 — Flags
+  const flags = computeFlags(normalized, sigmets, arrTaf);
 
-  // Proteção: sem procedimentos → retorno seguro
-  if (parsed.length === 0) {
-    return NextResponse.json({
-      activeRwy: null, windSummary: '',
-      recommended: null, byRwy: [], allCartas: cartas,
-    });
-  }
+  // Camada 4 — Decisão (sem LLM)
+  const threats    = buildThreats(flags);
+  const risk       = calculateRisk(flags, threats);
+  const windowData = buildWindow(flags, arrTaf);
 
-  // Camada 4 — RWY ativa
-  const runways         = [...new Set(parsed.map(p => p.rwy).filter(r => r !== 'GERAL'))];
-  const isWindDetermined = !env.isCalm && !env.isVRB;
-  const activeRwy       = getActiveRunway(env, runways);
-
-  // Flags de integração rota+procedimento
-  const routeFlags = { hasCBInInitialSector: routeHasCB && env.hasCB };
-
-  // Camada 5+6 — Score e seleção
-  const scored      = buildScoredProcedures(parsed, activeRwy, env, routeFlags);
-
-  // Proteção: se scored vazio após filtro → retorno seguro
-  if (!scored.length) {
-    return NextResponse.json({
-      activeRwy, windSummary: '',
-      recommended: null, byRwy: [], allCartas: cartas,
-    });
-  }
-
-  const recommended = scored[0];
-
-  // Camada 7 — Agrupamento
-  const byRwy = groupByRwy(scored, activeRwy);
-
-  // Wind summary — formato cockpit padronizado
-  const windSummary = env.isCalm
-    ? 'Calmaria | sem preferência de RWY'
-    : env.isVRB
-    ? 'Vento variável | sem preferência de RWY'
-    : `Vento ${String(env.windDir).padStart(3,'0')}°/${env.windSpeedKt}kt${env.gustKt ? ` G${env.gustKt}kt` : ''} | RWY ${activeRwy} favorecida`;
-
-  // Camada 8 — LLM (linguagem apenas, timeout reduzido para UX)
-  let reasons  = ['Melhor alinhamento com condições atuais'];
-  let briefing = `${type === 'dep' ? 'Saída' : 'Chegada'} padrão por instrumentos — consultar carta para detalhes operacionais.`;
+  // Camada 5 — Claude (linguagem apenas)
+  const prompt = buildPrompt(dep, arr, depMetar, arrMetar, depTaf, arrTaf,
+    sigmets, flags, threats, risk, windowData);
 
   try {
-    const prompt = buildPrompt(icao, type, recommended, activeRwy, env, isWindDetermined);
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -452,56 +413,39 @@ export async function GET(req: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
+        max_tokens: 512, // só precisa de status + criticalPoints
         messages: [{ role: 'user', content: prompt }],
       }),
-      signal: AbortSignal.timeout(8_000),  // reduzido: fallback rápido
+      signal: AbortSignal.timeout(30_000),
     });
 
-    if (res.ok) {
-      const data  = await res.json();
-      const text  = data.content?.[0]?.text ?? '';
-      const clean = text.replace(/```json|```/g, '').trim();
-      // Proteção robusta contra JSON malformado
-      let llm: any = null;
-      try { llm = JSON.parse(clean); } catch { llm = null; }
-      if (llm && Array.isArray(llm.reasons) && llm.reasons.length)  reasons  = llm.reasons;
-      if (llm && typeof llm.briefing === 'string' && llm.briefing)   briefing = llm.briefing;
+    if (!claudeRes.ok) {
+      const err = await claudeRes.text();
+      return NextResponse.json({ error: `Claude error: ${err}` }, { status: 502 });
     }
-  } catch { /* fallback mantido silenciosamente */ }
 
-  // Output final — backend prevalece em tudo exceto linguagem
-  return NextResponse.json({
-    activeRwy,
-    windSummary,
-    recommended: {
-      nome:      recommended.nome,
-      tipo:      recommended.tipo,
-      rwy:       recommended.rwyRaw,
-      score:     recommended.score,
-      reasons,
-      briefing,
-      tagLabels: recommended.tagLabels,
-      link:      recommended.link,
-      icp:       recommended.icp,
-    },
-    byRwy: byRwy.map(g => ({
-      rwy:        g.rwy,
-      active:     g.active,
-      heading:    g.heading,
-      procedures: g.procedures.map(p => ({
-        nome:        p.nome,
-        tipo:        p.tipo,
-        rwy:         p.rwyRaw,
-        recommended: p.recommended,
-        score:       p.score,
-        tagLabels:   p.tagLabels,
-        link:        p.link,
-        icp:         p.icp,
+    const claudeData = await claudeRes.json();
+    const text = claudeData.content?.[0]?.text ?? '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    const llmOut = JSON.parse(clean);
+
+    // Camada 6 — Output final: dados do backend prevalecem sobre LLM
+    const final = {
+      status:         llmOut.status         ?? 'ROTA ANALISADA',
+      statusLevel:    risk.statusLevel,      // backend
+      riskScore:      risk.riskScore,        // backend
+      riskLabel:      risk.riskLabel,        // backend
+      threats:        threats.map(t => ({    // backend
+        icon: t.icon, text: t.textKey, impact: t.impact, severity: t.severity,
       })),
-    })),
-    allCartas: cartas,
-  }, {
-    headers: { 'Cache-Control': 's-maxage=120, stale-while-revalidate=60' },
-  });
+      window:         windowData,            // backend
+      criticalPoints: llmOut.criticalPoints ?? [],
+    };
+
+    return NextResponse.json(final, {
+      headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=60' },
+    });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+  }
 }
