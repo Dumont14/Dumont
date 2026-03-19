@@ -255,19 +255,14 @@ export function RoutePanel({ dep, arr }: RoutePanelProps) {
   return (
     <Panel
       title="ROTA"
-      subtitle={route ? `${dep} → ${arr}  |  ${fmt3(route.heading)} - ${route.distance} NM` : `${dep} → ${arr}`}
+      subtitle={route ? `${dep} → ${arr}  ·  ${fmt3(route.heading)} · ${route.distance} NM` : `${dep} → ${arr}`}
       status={loading?'loading':error?'warn':'ok'}>
       {loading && <div className={styles.msg}><span className="spin"/> Calculando rota…</div>}
       {error   && <div className={styles.warn}>⚠ {error}</div>}
 
       {route && (<>
         {/* ── Rota Operacional Inteligente ── */}
-        <RouteIntelligence
-          dep={dep}
-          arr={arr}
-          distance={route.distance}
-          heading={route.heading}
-        />
+        <RouteIntelligence dep={dep} arr={arr} />
 
 
         {/* ── Alternativo selecionado ── */}
