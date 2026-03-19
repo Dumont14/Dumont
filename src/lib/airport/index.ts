@@ -1,7 +1,8 @@
 // src/lib/airport/index.ts
 // Busca dados oficiais do aeródromo:
-// - BR: AISWEB ROTAER via proxy São Paulo (dados DECEA oficiais)
-// - Internacional: Our Airports CSV (fallback)
+// 1. BR: AISWEB ROTAER direto (AISWEB_USER / AISWEB_PASS) — fonte primária
+// 2. BR fallback: AISWEB via proxy Supabase
+// 3. Internacional: Our Airports CSV
 
 export interface Frequency {
   type:        string;   // TWR, APP, GND, ATIS, RADIO, AFIS, UNICOM
@@ -16,33 +17,31 @@ export interface Runway {
   width_m:  number;
   surface:  string;   // ASPH, CONC, GRASS
   closed:   boolean;
-  tora_le?: number | null;  // distância declarada cabeceira baixa
-  tora_he?: number | null;  // distância declarada cabeceira alta
+  tora_le?: number | null;
+  tora_he?: number | null;
 }
 
 export interface AirportInfo {
-  icao:       string;
-  name:       string;
-  city:       string;
-  uf:         string;
-  lat:        string;
-  lng:        string;
-  alt_ft:     string;
-  utc:        string;
-  type_opr:   string;   // "VFR IFR"
-  type_util:  string;   // "PUB"
-  ats_hours:  string;   // "DLY 1015-2145"
+  icao:        string;
+  name:        string;
+  city:        string;
+  uf:          string;
+  lat:         string;
+  lng:         string;
+  alt_ft:      string;
+  utc:         string;
+  type_opr:    string;
+  type_util:   string;
+  ats_hours:   string;
   frequencies: Frequency[];
-  runways:    Runway[];
-  remarks:    string[];  // observações operacionais
-  fuel:       string;    // info de abastecimento
-  source:     'aisweb' | 'ourairports';
+  runways:     Runway[];
+  remarks:     string[];
+  fuel:        string;
+  source:      'aisweb' | 'ourairports';
 }
 
 const isBrazilian = (icao: string) => /^S[BDINPRSW][A-Z]{2}$/i.test(icao);
 
-// Strip common English/Portuguese airport suffixes (e.g. "Airport", "International Airport")
-// from names returned by OurAirports or AISWEB, which sometimes include them redundantly.
 function cleanAirportName(name: string): string {
   return name
     .replace(/\s+(International|Interstate|Regional|Municipal|Domestic)\s+(Airport|Aeroporto|Aeródromo)/gi, '')
@@ -51,7 +50,93 @@ function cleanAirportName(name: string): string {
     .trim();
 }
 
-// ── AISWEB ROTAER (BR) ───────────────────────────────────
+// ── 1. AISWEB ROTAER DIRETO ──────────────────────────────
+// Fonte primária para ADs brasileiros — sem proxy, sem dependências externas.
+// Requer AISWEB_USER e AISWEB_PASS no .env
+
+async function fetchFromAISWEBDirect(icao: string): Promise<AirportInfo | null> {
+  const user = process.env.AISWEB_USER;
+  const pass = process.env.AISWEB_PASS;
+  if (!user || !pass) return null;
+
+  try {
+    const q = new URLSearchParams({ apiKey: user, apiPass: pass, area: 'rotaer', icaoCode: icao });
+    const res = await fetch(
+      `https://api.decea.mil.br/aisweb/?${q}`,
+      { next: { revalidate: 86400 }, signal: AbortSignal.timeout(10_000) }
+    );
+    if (!res.ok) return null;
+
+    const xml = await res.text();
+    if (!xml || !xml.includes('<lat>')) return null;
+
+    // Helper: extrai texto de tag XML (suporta CDATA e texto simples)
+    const get = (tag: string): string => {
+      const re = new RegExp(
+        `<${tag}[^>]*>\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>\\s*<\\/${tag}>|<${tag}[^>]*>([^<]*)<\\/${tag}>`
+      );
+      const m = xml.match(re);
+      return (m?.[1] ?? m?.[2] ?? '').trim();
+    };
+
+    const lat = get('lat');
+    const lng = get('lng');
+    if (!lat || !lng || isNaN(parseFloat(lat))) return null;
+
+    // Frequências
+    const frequencies: Frequency[] = [];
+    const freqRe = /<freq(?:uencia)?[^>]*>([\s\S]*?)<\/freq(?:uencia)?>/gi;
+    let fm: RegExpExecArray | null;
+    while ((fm = freqRe.exec(xml)) !== null) {
+      const b  = fm[1];
+      const bg = (t: string) => {
+        const m2 = b.match(new RegExp(`<${t}[^>]*>([^<]*)<\\/${t}>`));
+        return m2?.[1]?.trim() ?? '';
+      };
+      const tipo = bg('tipo') || bg('type');
+      const mhz  = bg('freq') || bg('frequencia') || bg('mhz');
+      if (tipo && mhz) frequencies.push({ type: tipo, callsign: bg('indicativo') || '', mhz, description: '' });
+    }
+
+    // Pistas
+    const runways: Runway[] = [];
+    const rwyRe = /<pista[^>]*>([\s\S]*?)<\/pista>/gi;
+    let rm: RegExpExecArray | null;
+    while ((rm = rwyRe.exec(xml)) !== null) {
+      const b  = rm[1];
+      const bg = (t: string) => {
+        const m2 = b.match(new RegExp(`<${t}[^>]*>([^<]*)<\\/${t}>`));
+        return m2?.[1]?.trim() ?? '';
+      };
+      const cab1 = bg('cab1') || bg('cabeceira1');
+      const cab2 = bg('cab2') || bg('cabeceira2');
+      const lenM = parseInt(bg('comprimento') || bg('length') || '0');
+      const widM = parseInt(bg('largura')     || bg('width')  || '0');
+      const surf = bg('revestimento')         || bg('surface') || 'N/A';
+      if (cab1 && cab2) {
+        runways.push({ ident: `${cab1}/${cab2}`, length_m: lenM, width_m: widM, surface: surf, closed: false });
+      }
+    }
+
+    return {
+      icao,
+      name:      cleanAirportName(get('name') || get('nome') || icao),
+      city:      get('city') || get('cidade') || '',
+      uf:        get('uf') || '',
+      lat, lng,
+      alt_ft:    get('alt_ft') || get('elevacao') || get('altitude') || '',
+      utc:       get('utc') || '',
+      type_opr:  get('type_opr')  || get('tipo_operacao')   || '',
+      type_util: get('type_util') || get('tipo_utilizacao') || '',
+      ats_hours: get('ats_hours') || get('horario_ats')     || '',
+      frequencies, runways, remarks: [],
+      fuel:      get('fuel') || get('combustivel') || '',
+      source:    'aisweb',
+    };
+  } catch { return null; }
+}
+
+// ── 2. AISWEB via proxy Supabase (fallback BR) ────────────
 
 async function fetchFromAISWEB(icao: string): Promise<AirportInfo | null> {
   const proxyUrl = process.env.SUPABASE_AISWEB_PROXY_URL
@@ -59,7 +144,7 @@ async function fetchFromAISWEB(icao: string): Promise<AirportInfo | null> {
 
   const res = await fetch(`${proxyUrl}?icao=${icao}&area=rotaer`, {
     headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}` },
-    next: { revalidate: 86400 }, // cache 24h — ROTAER não muda com frequência
+    next: { revalidate: 86400 },
   });
 
   if (!res.ok) throw new Error(`AISWEB ROTAER proxy ${res.status}`);
@@ -89,7 +174,7 @@ async function fetchFromAISWEB(icao: string): Promise<AirportInfo | null> {
   };
 }
 
-// ── Our Airports CSV (internacional) ─────────────────────
+// ── 3. Our Airports CSV (internacional) ──────────────────
 
 const CSV_BASE = 'https://davidmegginson.github.io/ourairports-data';
 const csvCache: Record<string, string> = {};
@@ -119,8 +204,7 @@ function parseCSVLine(line: string): string[] {
 function normalizeFreqType(type: string): string {
   const map: Record<string, string> = {
     'TOWER': 'TWR', 'APPROACH': 'APP', 'GROUND': 'GND',
-    'DELIVERY': 'DEL', 'CTAF': 'UNICOM', 'RADIO': 'RADIO',
-    'INFO': 'AFIS',
+    'DELIVERY': 'DEL', 'CTAF': 'UNICOM', 'RADIO': 'RADIO', 'INFO': 'AFIS',
   };
   return map[type.toUpperCase()] || type.toUpperCase();
 }
@@ -153,12 +237,8 @@ async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
     const elevIdx   = aptHeader.indexOf('elevation_ft');
     const muniIdx   = aptHeader.indexOf('municipality');
 
-    let airportId = '';
-    let airportName = '';
-    let airportLat = '';
-    let airportLng = '';
-    let airportElev = '';
-    let airportCity = '';
+    let airportId = '', airportName = '', airportLat = '';
+    let airportLng = '', airportElev = '', airportCity = '';
 
     for (let i = 1; i < aptLines.length; i++) {
       const cols = parseCSVLine(aptLines[i]);
@@ -174,7 +254,6 @@ async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
     }
     if (!airportId) return null;
 
-    // Frequências
     const freqLines  = freqCSV.split('\n');
     const freqHeader = parseCSVLine(freqLines[0]);
     const fRefIdx    = freqHeader.indexOf('airport_ref');
@@ -191,14 +270,11 @@ async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
       const type = cols[fTypeIdx]?.toUpperCase() || '';
       if (!FREQ_TYPES.includes(type)) continue;
       frequencies.push({
-        type:        normalizeFreqType(type),
-        callsign:    '',
-        mhz:         cols[fMhzIdx] || '',
-        description: cols[fDescIdx] || '',
+        type: normalizeFreqType(type), callsign: '',
+        mhz: cols[fMhzIdx] || '', description: cols[fDescIdx] || '',
       });
     }
 
-    // Pistas
     const rwyLines  = rwyCSV.split('\n');
     const rwyHeader = parseCSVLine(rwyLines[0]);
     const rRefIdx   = rwyHeader.indexOf('airport_ref');
@@ -226,15 +302,11 @@ async function fetchFromOurAirports(icao: string): Promise<AirportInfo | null> {
     return {
       icao, name: cleanAirportName(airportName), city: airportCity,
       uf: '', lat: airportLat, lng: airportLng,
-      alt_ft: airportElev, utc: '',
-      type_opr: '', type_util: '',
-      ats_hours: '', frequencies, runways,
-      remarks: [], fuel: '',
+      alt_ft: airportElev, utc: '', type_opr: '', type_util: '',
+      ats_hours: '', frequencies, runways, remarks: [], fuel: '',
       source: 'ourairports',
     };
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 // ── Entry point ───────────────────────────────────────────
@@ -243,14 +315,21 @@ export async function fetchAirportInfo(icao: string): Promise<AirportInfo | null
   const code = icao.toUpperCase();
 
   if (isBrazilian(code)) {
+    // 1. AISWEB direto — fonte primária oficial, sem dependências externas
     try {
-      const data = await fetchFromAISWEB(code);
-      if (data) return data;
+      const direct = await fetchFromAISWEBDirect(code);
+      if (direct) return direct;
+    } catch { /* tenta próximo */ }
+
+    // 2. Proxy Supabase — fallback se AISWEB_USER/PASS não estiverem no .env
+    try {
+      const proxy = await fetchFromAISWEB(code);
+      if (proxy) return proxy;
     } catch (e) {
-      console.warn(`AISWEB ROTAER failed for ${code}, trying Our Airports:`, e);
+      console.warn(`AISWEB proxy failed for ${code}:`, e);
     }
   }
 
-  // Fallback: Our Airports (internacional ou se AISWEB falhar)
+  // 3. Our Airports — internacional ou último recurso
   return fetchFromOurAirports(code);
 }
