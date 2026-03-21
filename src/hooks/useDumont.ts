@@ -24,8 +24,16 @@ interface UseDumontReturn {
   toggleWake:   () => void;
 }
 
-const PORCUPINE_ACCESS_KEY = '+H2MG7Ko2e6a6qmF351gYjbOONDKyNXvsnS36Z6rJ7rah9ode84ABw==';
-const PORCUPINE_MODEL_URL  = '/models/dumont_pt_wasm.ppn';
+// Variações fonéticas que o browser pode transcrever para "Dumont"
+const WAKE_PATTERNS = [
+  'dumont', 'du mont', 'dumon', 'dumonte', 'dumund',
+  'du mond', 'dimon', 'domon', 'demon', 'duman',
+];
+
+function matchesWakeWord(text: string): boolean {
+  const normalized = text.toLowerCase().trim();
+  return WAKE_PATTERNS.some(p => normalized.includes(p));
+}
 
 export function useDumont(): UseDumontReturn {
   const [state,       setState]       = useState<DumontState>('idle');
@@ -33,16 +41,21 @@ export function useDumont(): UseDumontReturn {
   const [isSupported, setIsSupported] = useState(false);
   const [wakeEnabled, setWakeEnabled] = useState(false);
 
-  const recogRef      = useRef<any>(null);
-  const porcupineRef  = useRef<any>(null);
-  const stateRef      = useRef<DumontState>('idle');
-  const wakeRecogRef  = useRef<any>(null);
-  const wakeActiveRef = useRef(false);
+  // Refs — nunca ficam stale em closures
+  const stateRef       = useRef<DumontState>('idle');
+  const wakeEnabledRef = useRef(false);
+  const wakeRecogRef   = useRef<any>(null);
+  const briefRecogRef  = useRef<any>(null);
+  const wakeActiveRef  = useRef(false);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setStateSynced = useCallback((s: DumontState) => {
     stateRef.current = s;
     setState(s);
   }, []);
+
+  // Manter ref sincronizada com estado
+  useEffect(() => { wakeEnabledRef.current = wakeEnabled; }, [wakeEnabled]);
 
   useEffect(() => {
     const w = window as any;
@@ -52,6 +65,7 @@ export function useDumont(): UseDumontReturn {
     );
   }, []);
 
+  // ── Síntese de voz ────────────────────────────────────
   const stopSpeaking = useCallback(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
@@ -64,26 +78,28 @@ export function useDumont(): UseDumontReturn {
       setStateSynced('idle'); return;
     }
     setStateSynced('speaking');
-    const utt       = new SpeechSynthesisUtterance(text);
-    utt.lang        = lang === 'en' ? 'en-US' : 'pt-BR';
-    utt.rate        = 0.95; utt.pitch = 1.0; utt.volume = 1.0;
-    const voices    = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => v.lang === utt.lang && v.localService)
-                   || voices.find(v => v.lang.startsWith(utt.lang.substring(0, 2)));
-    if (preferred) utt.voice = preferred;
+    const utt    = new SpeechSynthesisUtterance(text);
+    utt.lang     = lang === 'en' ? 'en-US' : 'pt-BR';
+    utt.rate     = 0.95; utt.pitch = 1.0; utt.volume = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const voice  = voices.find(v => v.lang === utt.lang && v.localService)
+                || voices.find(v => v.lang.startsWith(utt.lang.slice(0, 2)));
+    if (voice) utt.voice = voice;
     utt.onend   = () => setStateSynced('idle');
     utt.onerror = () => setStateSynced('idle');
     window.speechSynthesis.speak(utt);
   }, [stopSpeaking, setStateSynced]);
 
+  // ── Processamento da query ────────────────────────────
   const processTranscript = useCallback(async (transcript: string, lang: string) => {
     setStateSynced('thinking');
+    // Remove a wake word da query antes de enviar
     const query = transcript.replace(/\bdumont\b/gi, '').trim() || transcript;
     try {
       const res  = await fetch('/api/voice', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: query, lang }),
+        body:    JSON.stringify({ text: query, lang }),
       });
       const data = await res.json() as VoiceResponse;
       setResult({ heard: transcript, response: data });
@@ -94,182 +110,197 @@ export function useDumont(): UseDumontReturn {
         : 'Dados momentaneamente indisponíveis.';
       const errResponse: VoiceResponse = {
         reply: fallback, icao: null, type: 'aerodrome',
-        lang: lang === 'en' ? 'en' : 'pt',
+        lang:  lang === 'en' ? 'en' : 'pt',
       };
       setResult({ heard: transcript, response: errResponse });
       speak(fallback, lang);
     }
   }, [speak, setStateSynced]);
 
-  /**
-   * startBriefingListener — called after chime finishes.
-   * The chime acts as audio feedback: "I heard you, now speak."
-   */
+  // ── Listener de briefing (após chime) ────────────────
   const startBriefingListener = useCallback((lang: string) => {
     const w  = window as any;
     const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) return;
-    recogRef.current?.stop();
+
+    briefRecogRef.current?.stop();
     const recog          = new SR();
     recog.continuous     = false;
     recog.interimResults = false;
     recog.lang           = lang;
-    recogRef.current     = recog;
+    briefRecogRef.current = recog;
+
     recog.onresult = (e: any) => {
       const transcript = e.results[0][0].transcript.trim();
       processTranscript(transcript, lang);
     };
     recog.onerror = (e: any) => {
-      if (e.error !== 'no-speech') console.warn('Speech error:', e.error);
+      if (e.error !== 'no-speech') console.warn('[Dumont] Speech error:', e.error);
       setStateSynced('idle');
     };
     recog.onend = () => {
       if (stateRef.current === 'listening') setStateSynced('idle');
     };
+
     setStateSynced('listening');
-    recog.start();
+    try { recog.start(); } catch { setStateSynced('idle'); }
   }, [processTranscript, setStateSynced]);
 
-  /**
-   * activateWithChime — plays the cabin chime, then opens the mic.
-   * Awaiting the chime ensures the mic opens only after the sound ends,
-   * preventing the chime itself from being transcribed.
-   */
+  // ── Chime + abertura do mic ───────────────────────────
   const activateWithChime = useCallback(async (lang: string) => {
-    setStateSynced('wake'); // show "AGUARDANDO…" while chime plays
+    // Parar wake word listener temporariamente
+    wakeRecogRef.current?.stop();
+    wakeActiveRef.current = false;
+
+    setStateSynced('wake'); // mostra "AGUARDANDO…" durante o chime
     await playChime();
     startBriefingListener(lang);
   }, [startBriefingListener, setStateSynced]);
 
-  const startWakeWebSpeech = useCallback(() => {
-    if (!isSupported || wakeActiveRef.current) return;
+  // ── Wake word listener (Web Speech robusto) ──────────
+  const startWakeListener = useCallback(() => {
+    if (!isSupported) return;
+    if (wakeActiveRef.current) return;
+
     const w  = window as any;
     const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) return;
+
+    // Limpar timer de reinício pendente
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+
     wakeRecogRef.current?.stop();
+
     const recog           = new SR();
-    recog.continuous      = true;
+    // Usar continuous=false com reinício automático é mais estável que continuous=true
+    recog.continuous      = false;
     recog.interimResults  = true;
     recog.lang            = navigator.language || 'pt-BR';
+    recog.maxAlternatives = 3;
     wakeRecogRef.current  = recog;
     wakeActiveRef.current = true;
+
     recog.onresult = (e: any) => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const text = e.results[i][0].transcript.toLowerCase();
-        if (text.includes('dumont')) {
-          wakeActiveRef.current = false;
-          recog.stop();
-          // Play chime before opening briefing mic
-          const lang = navigator.language || 'pt-BR';
-          activateWithChime(lang);
-          return;
+        // Verificar todas as alternativas para maior tolerância
+        for (let j = 0; j < e.results[i].length; j++) {
+          const text = e.results[i][j].transcript;
+          if (matchesWakeWord(text)) {
+            console.log('[Dumont] Wake word detectada:', text);
+            wakeActiveRef.current = false;
+            recog.stop();
+            const lang = navigator.language || 'pt-BR';
+            activateWithChime(lang);
+            return;
+          }
         }
       }
     };
-    recog.onerror = () => { wakeActiveRef.current = false; };
-    recog.onend   = () => {
+
+    recog.onerror = (e: any) => {
       wakeActiveRef.current = false;
-      if (wakeEnabled && stateRef.current === 'idle') {
-        setTimeout(() => startWakeWebSpeech(), 300);
+      // 'not-allowed' = sem permissão de mic — não reiniciar
+      if (e.error === 'not-allowed') {
+        console.warn('[Dumont] Permissão de microfone negada');
+        return;
       }
     };
+
+    recog.onend = () => {
+      wakeActiveRef.current = false;
+      // Só reiniciar se wake ainda estiver habilitado e não em outro estado
+      if (
+        wakeEnabledRef.current &&
+        stateRef.current === 'wake'
+      ) {
+        // Pequeno delay para evitar loop frenético
+        restartTimerRef.current = setTimeout(() => {
+          startWakeListener();
+        }, 200);
+      }
+    };
+
     try {
       recog.start();
       setStateSynced('wake');
-    } catch { wakeActiveRef.current = false; }
-  }, [isSupported, wakeEnabled, activateWithChime, setStateSynced]);
-
-  const startPorcupine = useCallback(async () => {
-    if (porcupineRef.current) return;
-    try {
-      const { PorcupineWorker } = await import('@picovoice/porcupine-web');
-      const ppnRes  = await fetch(PORCUPINE_MODEL_URL);
-      const ppnBuf  = await ppnRes.arrayBuffer();
-      const ppnData = new Uint8Array(ppnBuf);
-      const b64     = btoa(ppnData.reduce((s, b) => s + String.fromCharCode(b), ''));
-      const porcupine = await PorcupineWorker.create(
-        PORCUPINE_ACCESS_KEY,
-        [{ base64: b64, sensitivity: 0.7, label: 'dumont' }],
-        () => {
-          console.log('[Porcupine] Dumont detectado!');
-          // @ts-ignore
-          try { porcupine.pause(); } catch {}
-          // Play chime before opening briefing mic
-          activateWithChime(navigator.language || 'pt-BR');
-        },
-        {
-          publicPath: 'https://cdn.jsdelivr.net/npm/@picovoice/porcupine-web@4/dist/',
-          forceWrite: true,
-          // @ts-ignore
-          modelVersion: '3.0.0',
-          language: 'pt',
-        }
-      );
-      porcupineRef.current = porcupine;
-      // @ts-ignore
-      await porcupine.start();
-      setStateSynced('wake');
-    } catch (err) {
-      console.warn('[Porcupine] Falhou, usando Web Speech fallback:', err);
-      startWakeWebSpeech();
+    } catch (e) {
+      wakeActiveRef.current = false;
+      console.warn('[Dumont] Falha ao iniciar wake listener:', e);
     }
-  }, [activateWithChime, startWakeWebSpeech, setStateSynced]);
+  }, [isSupported, activateWithChime, setStateSynced]);
 
-  const stopWake = useCallback(() => {
-    if (porcupineRef.current) {
-      try { porcupineRef.current.terminate(); } catch {}
-      porcupineRef.current = null;
+  const stopWakeListener = useCallback(() => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
     }
     wakeActiveRef.current = false;
-    wakeRecogRef.current?.stop();
+    try { wakeRecogRef.current?.stop(); } catch {}
     if (stateRef.current === 'wake') setStateSynced('idle');
   }, [setStateSynced]);
 
+  // ── Efeito: ligar/desligar wake listener ─────────────
   useEffect(() => {
     if (wakeEnabled && isSupported) {
-      startPorcupine();
+      startWakeListener();
     } else {
-      stopWake();
+      stopWakeListener();
     }
+    return () => {
+      if (!wakeEnabled) stopWakeListener();
+    };
   }, [wakeEnabled, isSupported]); // eslint-disable-line
 
+  // ── Efeito: reiniciar wake após falar/processar ───────
   useEffect(() => {
-    if (state === 'idle' && wakeEnabled && isSupported) {
+    if (state === 'idle' && wakeEnabledRef.current && isSupported) {
       const t = setTimeout(() => {
-        if (porcupineRef.current) {
-          try { porcupineRef.current.resume(); } catch {}
-        } else {
-          startPorcupine();
+        if (stateRef.current === 'idle' && wakeEnabledRef.current) {
+          startWakeListener();
         }
-      }, 500);
+      }, 600);
       return () => clearTimeout(t);
     }
-  }, [state]); // eslint-disable-line
+  }, [state, isSupported, startWakeListener]);
 
+  // ── Cleanup ao desmontar ──────────────────────────────
   useEffect(() => {
     return () => {
-      stopWake();
-      recogRef.current?.stop();
+      stopWakeListener();
+      briefRecogRef.current?.stop();
       stopSpeaking();
     };
-  }, [stopWake, stopSpeaking]);
+  }, []); // eslint-disable-line
 
-  // Manual activation via button — also plays chime first
+  // ── Vozes — carregar antecipadamente ─────────────────
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+  }, []);
+
+  // ── API pública ───────────────────────────────────────
+
+  // Ativação manual via botão
   const activate = useCallback(() => {
     if (state === 'speaking') { stopSpeaking(); setStateSynced('idle'); return; }
     if (state !== 'idle' && state !== 'wake') return;
-    stopWake();
+    stopWakeListener();
     const lang = navigator.language || 'pt-BR';
     activateWithChime(lang);
-  }, [state, stopSpeaking, stopWake, activateWithChime, setStateSynced]);
+  }, [state, stopSpeaking, stopWakeListener, activateWithChime, setStateSynced]);
 
   const stop = useCallback(() => {
-    stopWake();
-    recogRef.current?.stop();
+    stopWakeListener();
+    briefRecogRef.current?.stop();
     stopSpeaking();
     setStateSynced('idle');
     setResult(null);
-  }, [stopWake, stopSpeaking, setStateSynced]);
+  }, [stopWakeListener, stopSpeaking, setStateSynced]);
 
   const clearResult = useCallback(() => {
     setResult(null);
@@ -283,11 +314,8 @@ export function useDumont(): UseDumontReturn {
     setWakeEnabled(e => !e);
   }, []);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-    }
-  }, []);
-
-  return { state, result, activate, stop, clearResult, replay, isSupported, wakeEnabled, toggleWake };
+  return {
+    state, result, activate, stop, clearResult,
+    replay, isSupported, wakeEnabled, toggleWake,
+  };
 }
