@@ -103,52 +103,79 @@ export function useDumont(): UseDumontReturn {
   }, []);
 
   // ── Síntese de voz ────────────────────────────────────
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const stopSpeaking = useCallback(() => {
+    // Parar OpenAI TTS
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
+    // Parar Web Speech fallback
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
   }, []);
 
-  const speak = useCallback((text: string, lang: string) => {
-    stopSpeaking();
+  const speakWebSpeech = useCallback((text: string, lang: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
       setStateSynced('idle'); return;
     }
-    setStateSynced('speaking');
-
     const utt    = new SpeechSynthesisUtterance(text);
     utt.lang     = lang === 'en' ? 'en-US' : 'pt-BR';
-    utt.rate     = 0.92;   // levemente mais lento — mais claro
-    utt.pitch    = 0.95;   // ligeiramente mais grave — mais profissional
+    utt.rate     = 0.92;
+    utt.pitch    = 0.95;
     utt.volume   = 1.0;
-
-    // Selecionar melhor voz disponível
     const bestVoice = selectBestVoice(lang);
-    if (bestVoice) {
-      utt.voice = bestVoice;
-      console.debug('[Dumont] Voz selecionada:', bestVoice.name, bestVoice.lang);
-    }
+    if (bestVoice) utt.voice = bestVoice;
 
-    utt.onend   = () => setStateSynced('idle');
-    utt.onerror = () => setStateSynced('idle');
-
-    // Chrome mobile bug: speechSynthesis para após ~15s
-    // Workaround: resumir periodicamente
     const resumeInterval = setInterval(() => {
       if (window.speechSynthesis.paused) window.speechSynthesis.resume();
     }, 5000);
 
-    utt.onend = () => {
-      clearInterval(resumeInterval);
-      setStateSynced('idle');
-    };
-    utt.onerror = () => {
-      clearInterval(resumeInterval);
-      setStateSynced('idle');
-    };
-
+    utt.onend = () => { clearInterval(resumeInterval); setStateSynced('idle'); };
+    utt.onerror = () => { clearInterval(resumeInterval); setStateSynced('idle'); };
     window.speechSynthesis.speak(utt);
-  }, [stopSpeaking, setStateSynced]);
+  }, [setStateSynced]);
+
+  const speak = useCallback(async (text: string, lang: string) => {
+    stopSpeaking();
+    setStateSynced('speaking');
+
+    try {
+      // Tentar OpenAI TTS
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, lang }),
+        signal: AbortSignal.timeout(12_000),
+      });
+
+      if (!res.ok) throw new Error(`TTS ${res.status}`);
+
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        setStateSynced('idle');
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        speakWebSpeech(text, lang); // fallback
+      };
+
+      await audio.play();
+    } catch {
+      // Fallback para Web Speech se OpenAI TTS falhar
+      speakWebSpeech(text, lang);
+    }
+  }, [stopSpeaking, speakWebSpeech, setStateSynced]);
 
   // ── Processamento da query ────────────────────────────
   const processTranscript = useCallback(async (transcript: string, lang: string) => {
